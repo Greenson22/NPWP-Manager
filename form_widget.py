@@ -1,37 +1,40 @@
 # form_widget.py
-# Berisi kelas QWidget untuk formulir pendaftaran
+# Berisi kelas QScrollArea untuk formulir pendaftaran
 
 import os
 import shutil
 import platform
 import subprocess
 from pathlib import Path
+
+# --- IMPOR PYQT ---
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QFormLayout, QLineEdit, QComboBox, 
     QTextEdit, QPushButton, QMessageBox, QGroupBox, QDateEdit, QHBoxLayout,
     QListWidget, QListWidgetItem, QFileDialog, 
-    QScrollArea  # <-- 1. IMPORT TAMBAHAN
+    QScrollArea, QApplication
 )
 from PyQt6.QtCore import QDate, QRegularExpression, pyqtSignal, Qt
-from PyQt6.QtGui import QRegularExpressionValidator
+from PyQt6.QtGui import QRegularExpressionValidator, QCursor
+
+# --- IMPOR KUSTOM ---
 import db_manager
 from config import BASE_DOC_FOLDER
+import gemini_parser # Impor modul AI baru
 
-# 2. UBAH INDUK KELAS DARI QWidget MENJADI QScrollArea
+# Ubah induk kelas dari QWidget menjadi QScrollArea
 class FormWidget(QScrollArea):
     data_saved = pyqtSignal()
 
     def __init__(self):
         super().__init__()
         
-        # 3. BUAT WIDGET KONTEN INTERNAL
-        # QScrollArea membutuhkan satu widget anak untuk di-scroll
+        # Buat widget konten internal
         self.content_widget = QWidget()
         
-        # 4. KONFIGURASI QScrollArea (yaitu 'self')
-        self.setWidgetResizable(True) # Biarkan konten mengisi area
-        self.setWidget(self.content_widget) # Atur widget konten
-        # Atur agar scroll mulus (opsional)
+        # Konfigurasi QScrollArea (yaitu 'self')
+        self.setWidgetResizable(True)
+        self.setWidget(self.content_widget)
         self.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         self.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
 
@@ -41,18 +44,25 @@ class FormWidget(QScrollArea):
         self.files_to_add = set()
         self.files_to_remove = set()
         
-        # Panggil init_ui seperti biasa
+        # Panggil init_ui
         self.init_ui()
 
     def init_ui(self):
         """Menginisialisasi User Interface (UI) untuk form."""
         
-        # 5. TERAPKAN LAYOUT UTAMA KE 'self.content_widget', BUKAN 'self'
+        # Terapkan layout utama ke 'self.content_widget'
         main_layout = QVBoxLayout(self.content_widget)
+
+        # --- TOMBOL BARU UNTUK AI ---
+        self.ai_fill_btn = QPushButton("🤖 Isi Otomatis dari KTP/KK...")
+        self.ai_fill_btn.setStyleSheet("background-color: #0275d8; color: white; padding: 8px; border-radius: 4px;")
+        self.ai_fill_btn.clicked.connect(self.on_ai_fill)
+        main_layout.addWidget(self.ai_fill_btn) # Tambahkan di bagian paling atas
+        # -----------------------------
 
         nik_validator = QRegularExpressionValidator(QRegularExpression(r'\d{16}'))
 
-        # --- Grup 1: Status Pendaftaran (Sama) ---
+        # --- Grup 1: Status Pendaftaran ---
         group_status = QGroupBox("Status Pendaftaran")
         layout_status = QFormLayout()
         self.status_input = QComboBox()
@@ -62,7 +72,7 @@ class FormWidget(QScrollArea):
         layout_status.addRow("Keterangan:", self.keterangan_input)
         group_status.setLayout(layout_status)
         
-        # --- Grup 2: Data Diri (Sama) ---
+        # --- Grup 2: Data Diri ---
         group_data_diri = QGroupBox("Data Diri Pemohon")
         layout_data_diri = QFormLayout()
         self.nama_input = QLineEdit()
@@ -95,7 +105,7 @@ class FormWidget(QScrollArea):
         layout_data_diri.addRow("Nama Ibu Kandung:", self.nama_ibu_input)
         group_data_diri.setLayout(layout_data_diri)
 
-        # --- Grup 3: Akun & Kontak (Sama) ---
+        # --- Grup 3: Akun & Kontak ---
         group_akun = QGroupBox("Akun dan Kontak")
         layout_akun = QFormLayout()
         self.email_input = QLineEdit()
@@ -109,7 +119,7 @@ class FormWidget(QScrollArea):
         layout_akun.addRow("Nomor HP:", self.no_hp_input)
         group_akun.setLayout(layout_akun)
 
-        # --- Grup 4: Manajemen Dokumen (Sama) ---
+        # --- Grup 4: Manajemen Dokumen ---
         group_dokumen = QGroupBox("Manajemen Dokumen")
         layout_dokumen = QVBoxLayout()
         self.file_list_widget = QListWidget()
@@ -130,7 +140,7 @@ class FormWidget(QScrollArea):
         layout_dokumen.addWidget(self.file_list_widget)
         group_dokumen.setLayout(layout_dokumen)
 
-        # --- Tombol Aksi (Sama) ---
+        # --- Tombol Aksi ---
         layout_tombol = QHBoxLayout()
         self.simpan_btn = QPushButton("Simpan Data")
         self.simpan_btn.setStyleSheet("background-color: #4CAF50; color: white; padding: 8px; border-radius: 4px;")
@@ -141,20 +151,77 @@ class FormWidget(QScrollArea):
         layout_tombol.addWidget(self.bersihkan_btn)
         layout_tombol.addWidget(self.simpan_btn)
 
-        # --- Tambahkan semua grup ke main_layout (Sama) ---
+        # --- Tambahkan semua grup ke main_layout ---
         main_layout.addWidget(group_status)
         main_layout.addWidget(group_data_diri)
         main_layout.addWidget(group_akun)
         main_layout.addWidget(group_dokumen)
         main_layout.addLayout(layout_tombol)
-        
-        # 6. HAPUS BARIS 'self.setLayout(main_layout)'
-        # Layout sudah diatur di 'self.content_widget' pada langkah 5.
 
-    # -----------------------------------------------------------------
-    # SEMUA FUNGSI LAIN DI BAWAH INI (on_add_files, simpan_data, dll.)
-    # TIDAK PERLU DIUBAH SAMA SEKALI.
-    # -----------------------------------------------------------------
+    # --- FUNGSI BARU UNTUK AI ---
+    
+    def on_ai_fill(self):
+        """Dipanggil saat tombol 'Isi Otomatis' diklik."""
+        file_path, _ = QFileDialog.getOpenFileName(
+            self,
+            "Pilih Gambar KTP atau Kartu Keluarga",
+            "", # Direktori awal
+            "Images (*.png *.jpg *.jpeg *.webp)"
+        )
+        
+        if not file_path:
+            return # Pengguna membatalkan
+
+        # Ubah kursor menjadi 'Loading'
+        self.setCursor(QCursor(Qt.CursorShape.WaitCursor))
+        QApplication.processEvents() # Paksa UI update
+
+        # Panggil parser AI
+        success, result = gemini_parser.extract_data_from_image(file_path)
+        
+        # Kembalikan kursor
+        self.unsetCursor()
+
+        if success:
+            QMessageBox.information(self, "Sukses", "Data berhasil diekstrak! Harap periksa kembali isiannya.")
+            self.populate_form_with_ai_data(result)
+        else:
+            QMessageBox.critical(self, "Error AI", f"Gagal memproses gambar: {result}")
+
+    def populate_form_with_ai_data(self, data: dict):
+        """Mengisi field form dari data dictionary hasil AI."""
+        
+        print(f"Mengisi form dengan data: {data}")
+        
+        # Cek jika kunci ada sebelum mengisinya
+        if data.get('nama'):
+            self.nama_input.setText(data.get('nama'))
+        if data.get('nik'):
+            self.nik_input.setText(data.get('nik'))
+        if data.get('nik_kk'):
+            self.nik_kk_input.setText(data.get('nik_kk'))
+        if data.get('no_kk'):
+            self.no_kk_input.setText(data.get('no_kk'))
+        if data.get('tempat_lahir'):
+            self.tempat_lahir_input.setText(data.get('tempat_lahir'))
+        if data.get('alamat'):
+            self.alamat_input.setPlainText(data.get('alamat'))
+            
+        # Mengisi tanggal lahir (agak rumit)
+        if data.get('tanggal_lahir'):
+            # AI diminta format YYYY-MM-DD
+            tgl = QDate.fromString(data.get('tanggal_lahir'), "yyyy-MM-dd")
+            if tgl.isValid():
+                self.tanggal_lahir_input.setDate(tgl)
+            else:
+                # Coba format lain jika AI gagal, misal DD-MM-YYYY
+                tgl = QDate.fromString(data.get('tanggal_lahir'), "dd-MM-yyyy")
+                if tgl.isValid():
+                    self.tanggal_lahir_input.setDate(tgl)
+                else:
+                    print(f"Format tanggal dari AI tidak valid: {data.get('tanggal_lahir')}")
+
+    # --- FUNGSI DOKUMEN (LAMA) ---
 
     def on_add_files(self):
         """Buka dialog untuk memilih satu atau beberapa file."""
@@ -212,6 +279,8 @@ class FormWidget(QScrollArea):
             for file_path in self.current_doc_folder.iterdir():
                 if file_path.is_file():
                     self.file_list_widget.addItem(file_path.name)
+        
+    # --- FUNGSI CORE (LAMA) ---
         
     def load_data_for_edit(self, user_id):
         """Ambil data dari DB dan isi form untuk mode edit."""

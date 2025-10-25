@@ -2,15 +2,24 @@
 # File utama untuk menjalankan aplikasi
 
 import sys
+import os
+from dotenv import load_dotenv, set_key
 from PyQt6.QtWidgets import (
-    QApplication, QMainWindow, QStackedWidget, QMessageBox
+    QApplication, QMainWindow, QStackedWidget, QMessageBox,
+    QInputDialog, QLineEdit
 )
 from PyQt6.QtGui import QAction, QFont
 
 import db_manager
 from form_widget import FormWidget
 from view_widget import ViewWidget
-from detail_widget import DetailWidget # <-- 1. IMPOR WIDGET BARU
+from detail_widget import DetailWidget
+import gemini_parser
+
+# --- INI ADALAH PERUBAHANNYA ---
+# Tentukan nama file .env
+ENV_FILE_PATH = ".myenv"
+# ---------------------------------
 
 class MainWindow(QMainWindow):
     """Jendela utama aplikasi."""
@@ -18,17 +27,32 @@ class MainWindow(QMainWindow):
         super().__init__()
         self.setWindowTitle('Aplikasi Pendaftaran NPWP')
         self.setGeometry(100, 100, 800, 700)
-
+        
+        self.load_and_init_api() 
         self.setup_menu()
         self.setup_main_widgets()
         
         self.show_add_new_form() 
 
-    # --- FUNGSI setup_menu (TETAP SAMA) ---
+    def load_and_init_api(self):
+        """Memuat API Key dari file .env dan menginisialisasi Gemini."""
+        # Memuat dari file .myenv
+        load_dotenv(dotenv_path=ENV_FILE_PATH) 
+        api_key = os.environ.get("GOOGLE_API_KEY")
+        gemini_parser.init_api(api_key)
+
     def setup_menu(self):
+        """Membuat dan mengatur Menu Bar."""
         menu_bar = self.menuBar()
         
         file_menu = menu_bar.addMenu('File')
+
+        config_action = QAction('Konfigurasi API Key...', self)
+        config_action.triggered.connect(self.configure_api_key)
+        file_menu.addAction(config_action)
+        
+        file_menu.addSeparator()
+        
         exit_action = QAction('Keluar', self)
         exit_action.triggered.connect(self.close)
         file_menu.addAction(exit_action)
@@ -43,44 +67,54 @@ class MainWindow(QMainWindow):
         view_data_action.triggered.connect(self.show_view_page)
         nav_menu.addAction(view_data_action)
 
-    # --- FUNGSI DIPERBARUI ---
-    def setup_main_widgets(self):
-        """Membuat QStackedWidget dan menambahkan semua halaman."""
+    def configure_api_key(self):
+        """Menampilkan dialog untuk memasukkan/mengedit API Key."""
         
+        current_key = os.environ.get("GOOGLE_API_KEY", "")
+        
+        new_key, ok = QInputDialog.getText(
+            self, 
+            "Konfigurasi API Key", 
+            "Masukkan Google Gemini API Key Anda:", 
+            QLineEdit.EchoMode.Password, 
+            current_key
+        )
+        
+        if ok and new_key and new_key != current_key:
+            try:
+                # Menyimpan ke file .myenv
+                set_key(dotenv_path=ENV_FILE_PATH, key_to_set="GOOGLE_API_KEY", value_to_set=new_key) 
+                os.environ["GOOGLE_API_KEY"] = new_key
+                gemini_parser.init_api(new_key)
+                QMessageBox.information(self, "Sukses", "API Key berhasil disimpan dan diaktifkan.")
+            except Exception as e:
+                QMessageBox.critical(self, "Error", f"Gagal menyimpan API Key: {e}")
+        elif ok:
+             QMessageBox.information(self, "Info", "API Key tidak berubah.")
+
+    def setup_main_widgets(self):
         self.stacked_widget = QStackedWidget()
         
-        # Buat instance dari semua halaman
         self.form_page = FormWidget()
         self.view_page = ViewWidget()
-        self.detail_page = DetailWidget() # <-- 2. BUAT INSTANCE HALAMAN DETAIL
+        self.detail_page = DetailWidget()
         
-        # Tambahkan halaman ke stacked widget
         self.stacked_widget.addWidget(self.form_page)
         self.stacked_widget.addWidget(self.view_page)
-        self.stacked_widget.addWidget(self.detail_page) # <-- 3. TAMBAHKAN KE STACK
+        self.stacked_widget.addWidget(self.detail_page)
 
         self.setCentralWidget(self.stacked_widget)
 
-        # --- Hubungkan Sinyal ---
-        
-        # Sinyal dari Form
         self.form_page.data_saved.connect(self.handle_data_saved)
-        
-        # Sinyal dari View/Tabel
         self.view_page.edit_requested.connect(self.handle_edit_request)
         self.view_page.delete_requested.connect(self.handle_delete_request)
-        self.view_page.detail_requested.connect(self.handle_detail_request) # <-- 4. HUBUNGKAN SINYAL BARU
-        
-        # Sinyal dari Detail
-        self.detail_page.back_requested.connect(self.show_view_page) # <-- 5. HUBUNGKAN SINYAL KEMBALI
-
-    # --- FUNGSI SLOT (Logika Aplikasi) ---
-
+        self.view_page.detail_requested.connect(self.handle_detail_request)
+        self.detail_page.back_requested.connect(self.show_view_page)
+    
     def navigate_to_form_page(self):
         self.stacked_widget.setCurrentWidget(self.form_page)
 
     def show_view_page(self):
-        """Beralih ke tampilan tabel dan me-refresh datanya."""
         self.view_page.load_data() 
         self.stacked_widget.setCurrentWidget(self.view_page)
         self.setWindowTitle('Aplikasi Pendaftaran NPWP - Lihat Data')
@@ -99,15 +133,12 @@ class MainWindow(QMainWindow):
         self.navigate_to_form_page()
         self.setWindowTitle(f'Aplikasi Pendaftaran NPWP - Edit Data (ID: {user_id})')
 
-    # --- FUNGSI SLOT BARU ---
     def handle_detail_request(self, user_id):
-        """Mempersiapkan dan menampilkan halaman detail."""
         print(f"Menerima permintaan detail untuk ID: {user_id}")
         self.detail_page.load_data(user_id)
         self.stacked_widget.setCurrentWidget(self.detail_page)
         self.setWindowTitle(f'Aplikasi Pendaftaran NPWP - Detail Data (ID: {user_id})')
 
-    # --- FUNGSI DIPERBARUI ---
     def handle_delete_request(self, user_id):
         print(f"Menerima permintaan hapus untuk ID: {user_id}")
         
@@ -138,7 +169,7 @@ class MainWindow(QMainWindow):
             else:
                 QMessageBox.critical(self, "Error", message)
 
-# --- Main execution (TETAP SAMA) ---
+# --- Main execution ---
 if __name__ == '__main__':
     db_manager.init_db() 
     

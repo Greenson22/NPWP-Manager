@@ -14,16 +14,15 @@ import db_manager
 class ViewWidget(QWidget):
     """Widget untuk menampilkan data dalam tabel."""
     
-    # --- SINYAL DIPERBARUI ---
+    # Sinyal
     edit_requested = pyqtSignal(int)
     delete_requested = pyqtSignal(int)
-    detail_requested = pyqtSignal(int) # <-- SINYAL BARU
+    detail_requested = pyqtSignal(int)
     
     def __init__(self):
         super().__init__()
         self.init_ui()
 
-    # --- FUNGSI init_ui (TETAP SAMA) ---
     def init_ui(self):
         layout = QVBoxLayout(self)
         
@@ -47,7 +46,6 @@ class ViewWidget(QWidget):
         layout.addWidget(self.table_widget)
         self.setLayout(layout)
 
-    # --- FUNGSI DIPERBARUI ---
     def show_context_menu(self, position):
         """Menampilkan menu Edit/Hapus saat baris diklik kanan."""
         
@@ -58,39 +56,39 @@ class ViewWidget(QWidget):
         row = item.row()
         
         try:
+            # Fungsi ini TETAP AMAN karena kolom 0 (ID) masih ada, 
+            # hanya disembunyikan
             user_id_item = self.table_widget.item(row, 0)
             user_id = int(user_id_item.text())
         except (AttributeError, ValueError, TypeError) as e:
             print(f"Error mendapatkan ID dari baris {row}: {e}")
             return
 
-        # Buat menu
         context_menu = QMenu(self)
         
-        # --- AKSI BARU ---
         detail_action = QAction("Lihat Detail Data", self)
         edit_action = QAction("Edit Data Ini", self)
         delete_action = QAction("Hapus Data Ini", self)
         
-        # Tambahkan aksi ke menu
-        context_menu.addAction(detail_action) # <-- TAMBAHKAN
-        context_menu.addSeparator() # <-- TAMBAHKAN
+        context_menu.addAction(detail_action)
+        context_menu.addSeparator()
         context_menu.addAction(edit_action)
         context_menu.addAction(delete_action)
         
         global_position = self.table_widget.mapToGlobal(position)
         selected_action = context_menu.exec(global_position)
         
-        # --- Kirim Sinyal berdasarkan aksi yang dipilih ---
         if selected_action == detail_action:
-            self.detail_requested.emit(user_id) # <-- TAMBAHKAN
+            self.detail_requested.emit(user_id)
         elif selected_action == edit_action:
             self.edit_requested.emit(user_id)
         elif selected_action == delete_action:
             self.delete_requested.emit(user_id)
 
-    # --- FUNGSI load_data (TETAP SAMA) ---
+    # --- FUNGSI DIPERBARUI ---
     def load_data(self):
+        """Mengambil data dari db_manager dan menampilkannya di tabel."""
+        
         success, data, headers = db_manager.load_data()
         
         if success:
@@ -109,13 +107,24 @@ class ViewWidget(QWidget):
                     item = QTableWidgetItem(str(col_value))
                     self.table_widget.setItem(row_idx, col_idx, item)
             
+            # --- BARIS KODE BARU DITAMBAHKAN DI SINI ---
+            # Sembunyikan kolom 'id' (yang ada di indeks 0)
+            try:
+                # Kita tahu 'Id' adalah header pertama dari config.py
+                self.table_widget.setColumnHidden(0, True)
+            except Exception as e:
+                print(f"Gagal menyembunyikan kolom ID: {e}")
+            # ---------------------------------------------
+
+            # Sesuaikan lebar kolom 'Alamat' dan 'Keterangan' agar lebih lebar
             try:
                 alamat_col = headers.index("Alamat")
                 self.table_widget.horizontalHeader().setSectionResizeMode(alamat_col, QHeaderView.ResizeMode.Stretch)
                 ket_col = headers.index("Keterangan")
                 self.table_widget.horizontalHeader().setSectionResizeMode(ket_col, QHeaderView.ResizeMode.Stretch)
             except ValueError:
-                pass 
+                pass # Jika kolom tidak ditemukan
 
         else:
+            # Jika gagal, 'data' berisi pesan error
             QMessageBox.critical(self, "Error", data)

@@ -8,9 +8,10 @@ from pathlib import Path
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QFormLayout, QLineEdit, QComboBox, 
     QTextEdit, QPushButton, QMessageBox, QGroupBox, QDateEdit, QHBoxLayout,
-    QListWidget, QListWidgetItem, QScrollArea
+    QListWidget, QListWidgetItem, QScrollArea, QCheckBox # <-- CheckBox ditambah
 )
-from PyQt6.QtCore import pyqtSignal, Qt
+# --- Impor diperbarui ---
+from PyQt6.QtCore import pyqtSignal, Qt, pyqtSlot
 import db_manager
 from config import BASE_DOC_FOLDER
 
@@ -97,10 +98,25 @@ class DetailWidget(QScrollArea):
         layout_akun = QFormLayout()
         self.email_display = QLineEdit()
         self.email_display.setReadOnly(True)
+        
+        # --- PERUBAHAN PASSWORD ---
+        self.password_display = QLineEdit()
+        self.password_display.setReadOnly(True)
+        self.password_display.setEchoMode(QLineEdit.EchoMode.Password)
+        
+        self.show_password_check = QCheckBox("Tampilkan")
+        self.show_password_check.toggled.connect(self.toggle_password_visibility)
+        
+        password_layout = QHBoxLayout()
+        password_layout.addWidget(self.password_display)
+        password_layout.addWidget(self.show_password_check)
+        # --- AKHIR PERUBAHAN ---
+        
         self.no_hp_display = QLineEdit()
         self.no_hp_display.setReadOnly(True)
         
         layout_akun.addRow("Email:", self.email_display)
+        layout_akun.addRow("Password:", password_layout) # <-- Baris ditambah
         layout_akun.addRow("Nomor HP:", self.no_hp_display)
         group_akun.setLayout(layout_akun)
 
@@ -132,6 +148,16 @@ class DetailWidget(QScrollArea):
         main_layout.addWidget(group_dokumen)
         main_layout.addLayout(layout_tombol)
 
+    # --- FUNGSI BARU ---
+    @pyqtSlot(bool)
+    def toggle_password_visibility(self, checked):
+        """Mengubah mode tampilan QLineEdit password."""
+        if checked:
+            self.password_display.setEchoMode(QLineEdit.EchoMode.Normal)
+        else:
+            self.password_display.setEchoMode(QLineEdit.EchoMode.Password)
+    # --- AKHIR FUNGSI BARU ---
+
     def load_data(self, user_id):
         """Ambil data dari DB dan isi semua field."""
         
@@ -159,6 +185,12 @@ class DetailWidget(QScrollArea):
         self.pekerjaan_display.setText(data_row['pekerjaan'] or "-")
         self.nama_ibu_display.setText(data_row['nama_ibu'] or "-")
         self.email_display.setText(data_row['email'] or "-")
+        
+        # --- BARIS BARU ---
+        self.password_display.setText(data_row['password'] or "")
+        self.show_password_check.setChecked(False) # Reset tampilan
+        # --- AKHIR PERUBAHAN ---
+        
         self.no_hp_display.setText(data_row['no_hp'] or "-")
 
         # Isi daftar file

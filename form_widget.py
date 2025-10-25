@@ -12,7 +12,7 @@ from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QFormLayout, QLineEdit, QComboBox, 
     QTextEdit, QPushButton, QMessageBox, QGroupBox, QDateEdit, QHBoxLayout,
     QListWidget, QListWidgetItem, QFileDialog, 
-    QScrollArea, QApplication, QTabWidget
+    QScrollArea, QApplication, QTabWidget, QCheckBox # <-- QCheckBox DITAMBAHKAN
 )
 # --- IMPOR DIPERBARUI ---
 from PyQt6.QtCore import QDate, QRegularExpression, pyqtSignal, Qt, QObject, QThread, pyqtSlot
@@ -196,12 +196,24 @@ class FormWidget(QWidget):
         layout_akun = QFormLayout()
         self.email_input = QLineEdit()
         self.email_input.setPlaceholderText("contoh@email.com")
+        
+        # --- PERUBAHAN PASSWORD ---
         self.password_input = QLineEdit()
         self.password_input.setEchoMode(QLineEdit.EchoMode.Password)
+        
+        self.show_password_checkbox = QCheckBox("Tampilkan")
+        self.show_password_checkbox.toggled.connect(self.toggle_password_visibility)
+        
+        password_layout = QHBoxLayout()
+        password_layout.addWidget(self.password_input)
+        password_layout.addWidget(self.show_password_checkbox)
+        # --- AKHIR PERUBAHAN ---
+        
         self.no_hp_input = QLineEdit()
         self.no_hp_input.setPlaceholderText("08...")
+        
         layout_akun.addRow("Email:", self.email_input)
-        layout_akun.addRow("Password:", self.password_input)
+        layout_akun.addRow("Password:", password_layout) # <-- BARIS DIGANTI
         layout_akun.addRow("Nomor HP:", self.no_hp_input)
         group_akun.setLayout(layout_akun)
 
@@ -248,6 +260,15 @@ class FormWidget(QWidget):
         self.tab_widget.addTab(form_scroll_area, "Formulir Pendaftaran")
         self.tab_widget.addTab(ai_tab, "🤖 Isi Otomatis (AI)")
 
+    # --- FUNGSI BARU UNTUK PASSWORD ---
+    @pyqtSlot(bool)
+    def toggle_password_visibility(self, checked):
+        """Mengubah mode tampilan QLineEdit password."""
+        if checked:
+            self.password_input.setEchoMode(QLineEdit.EchoMode.Normal)
+        else:
+            self.password_input.setEchoMode(QLineEdit.EchoMode.Password)
+    # --- AKHIR FUNGSI BARU ---
 
     # --- FUNGSI AI DIPERBARUI (THREADING) ---
     
@@ -514,6 +535,11 @@ class FormWidget(QWidget):
         self.nama_ibu_input.clear()
         self.email_input.clear()
         self.password_input.clear()
+        
+        # --- BARIS BARU ---
+        self.show_password_checkbox.setChecked(False) # Reset checkbox
+        # --- AKHIR PERUBAHAN ---
+        
         self.no_hp_input.clear()
         self.file_list_widget.clear()
         self.files_to_add.clear()

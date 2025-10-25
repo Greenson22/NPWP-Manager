@@ -4,7 +4,7 @@
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QPushButton, QMessageBox, 
     QTableWidget, QTableWidgetItem, QHeaderView, QMenu,
-    QHBoxLayout, QLineEdit # <-- Tambahkan QLineEdit
+    QHBoxLayout, QLineEdit, QCheckBox # <-- Tambahkan QCheckBox
 )
 from PyQt6.QtCore import pyqtSignal, Qt
 from PyQt6.QtGui import QAction
@@ -35,15 +35,21 @@ class ViewWidget(QWidget):
         self.refresh_btn = QPushButton("Refresh Data")
         self.refresh_btn.setStyleSheet("background-color: #008CBA; color: white; padding: 8px; border-radius: 4px;")
         
+        # --- WIDGET BARU ---
+        self.show_password_check = QCheckBox("Tampilkan Password")
+        # --- AKHIR PERUBAHAN ---
+        
         # 2. Atur layout
         button_layout = QHBoxLayout()
         button_layout.addWidget(self.search_input) # Tambahkan kotak pencarian
         button_layout.addWidget(self.refresh_btn) # Tambahkan tombol refresh
+        button_layout.addWidget(self.show_password_check) # <-- Tambahkan checkbox
         button_layout.addStretch()
 
         # 3. Hubungkan sinyal
         self.refresh_btn.clicked.connect(self.clear_search_and_refresh)
         self.search_input.textChanged.connect(self.load_data)
+        self.show_password_check.toggled.connect(self.load_data) # <-- Hubungkan checkbox
         
         # --- Akhir Perubahan Layout ---
 
@@ -128,17 +134,37 @@ class ViewWidget(QWidget):
             self.table_widget.setHorizontalHeaderLabels(headers)
             self.table_widget.setRowCount(len(data))
             
+            # --- LOGIKA PENYAMARAN PASSWORD BARU ---
+            try:
+                # Cari indeks kolom 'Password'
+                password_col_index = headers.index("Password")
+            except ValueError:
+                password_col_index = -1 # Password tidak ditemukan
+                
+            is_password_shown = self.show_password_check.isChecked()
+            # --- AKHIR LOGIKA BARU ---
+
             for row_idx, row_data in enumerate(data):
                 for col_idx, col_value in enumerate(row_data):
-                    item = QTableWidgetItem(str(col_value))
+                    
+                    item_text = str(col_value)
+                    
+                    # --- LOGIKA PENYAMARAN BARU ---
+                    # Jika ini kolom password DAN checkbox tidak dicentang
+                    if col_idx == password_col_index and not is_password_shown:
+                        item_text = "••••••••" # Samarkan data
+                    # --- AKHIR LOGIKA BARU ---
+                    
+                    item = QTableWidgetItem(item_text)
                     self.table_widget.setItem(row_idx, col_idx, item)
             
             try:
-                self.table_widget.setColumnHidden(0, True)
+                self.table_widget.setColumnHidden(0, True) # Sembunyikan kolom ID
             except Exception as e:
                 print(f"Gagal menyembunyikan kolom ID: {e}")
 
             try:
+                # Atur agar kolom alamat dan keterangan bisa melebar
                 alamat_col = headers.index("Alamat")
                 self.table_widget.horizontalHeader().setSectionResizeMode(alamat_col, QHeaderView.ResizeMode.Stretch)
                 ket_col = headers.index("Keterangan")

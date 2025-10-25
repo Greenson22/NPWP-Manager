@@ -8,7 +8,7 @@ from pathlib import Path
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QFormLayout, QLineEdit, QComboBox, 
     QTextEdit, QPushButton, QMessageBox, QGroupBox, QDateEdit, QHBoxLayout,
-    QListWidget, QListWidgetItem, QScrollArea, QCheckBox # <-- CheckBox ditambah
+    QListWidget, QListWidgetItem, QScrollArea, QCheckBox 
 )
 # --- Impor diperbarui ---
 from PyQt6.QtCore import pyqtSignal, Qt, pyqtSlot
@@ -44,8 +44,16 @@ class DetailWidget(QScrollArea):
         self.status_display.setReadOnly(True)
         self.keterangan_display = QLineEdit()
         self.keterangan_display.setReadOnly(True)
+        
+        # --- WIDGET BARU ---
+        self.catatan_display = QTextEdit()
+        self.catatan_display.setReadOnly(True)
+        self.catatan_display.setFixedHeight(60)
+        # --- AKHIR PERUBAHAN ---
+        
         layout_status.addRow("Status:", self.status_display)
         layout_status.addRow("Keterangan:", self.keterangan_display)
+        layout_status.addRow("Catatan:", self.catatan_display) # <-- Baris Ditambahkan
         group_status.setLayout(layout_status)
         
         # --- Grup 2: Data Diri ---
@@ -170,6 +178,7 @@ class DetailWidget(QScrollArea):
         # Isi semua field
         self.status_display.setText(data_row['status'] or "-")
         self.keterangan_display.setText(data_row['keterangan'] or "-")
+        self.catatan_display.setPlainText(data_row['catatan'] or "-") # <-- Baris Ditambahkan
         self.nama_display.setText(data_row['nama'])
         
         # --- BARIS BARU ---

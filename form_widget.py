@@ -12,7 +12,7 @@ from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QFormLayout, QLineEdit, QComboBox, 
     QTextEdit, QPushButton, QMessageBox, QGroupBox, QDateEdit, QHBoxLayout,
     QListWidget, QListWidgetItem, QFileDialog, 
-    QScrollArea, QApplication, QTabWidget, QCheckBox # <-- QCheckBox DITAMBAHKAN
+    QScrollArea, QApplication, QTabWidget, QCheckBox 
 )
 # --- IMPOR DIPERBARUI ---
 from PyQt6.QtCore import QDate, QRegularExpression, pyqtSignal, Qt, QObject, QThread, pyqtSlot
@@ -138,8 +138,17 @@ class FormWidget(QWidget):
         self.status_input = QComboBox()
         self.status_input.addItems(["", "Berhasil", "Pengawasan", "Gagal"])
         self.keterangan_input = QLineEdit()
+        
+        # --- WIDGET BARU ---
+        self.catatan_input = QTextEdit()
+        self.catatan_input.setFixedHeight(60) # Sedikit lebih pendek dari alamat
+        self.catatan_input.setPlaceholderText("Tambahkan catatan internal di sini...")
+        # --- AKHIR PERUBAHAN ---
+        
         layout_status.addRow("Status:", self.status_input)
         layout_status.addRow("Keterangan:", self.keterangan_input)
+        layout_status.addRow("Catatan:", self.catatan_input) # <-- Baris Ditambahkan
+        
         group_status.setLayout(layout_status)
         
         # --- Grup 2: Data Diri ---
@@ -451,6 +460,7 @@ class FormWidget(QWidget):
         self.nama_input.setText(data_row['nama'])
         self.status_input.setCurrentText(data_row['status'])
         self.keterangan_input.setText(data_row['keterangan'])
+        self.catatan_input.setPlainText(data_row['catatan'] or "") # <-- Baris Ditambahkan
         
         # --- BARIS BARU ---
         self.status_hubungan_input.setCurrentText(data_row['status_hubungan'])
@@ -489,11 +499,13 @@ class FormWidget(QWidget):
         if not self.nik_input.hasAcceptableInput():
             QMessageBox.warning(self, "Input Error", "Format NIK tidak valid.")
             return
+            
         data = {
             "nama": self.nama_input.text(),
             "status": self.status_input.currentText(),
             "keterangan": self.keterangan_input.text(),
-            "status_hubungan": self.status_hubungan_input.currentText(), # <-- BARU
+            "catatan": self.catatan_input.toPlainText(), # <-- Baris Ditambahkan
+            "status_hubungan": self.status_hubungan_input.currentText(), 
             "nik": nik, "nik_kk": self.nik_kk_input.text(), "no_kk": self.no_kk_input.text(),
             "tempat_lahir": self.tempat_lahir_input.text(),
             "tanggal_lahir": self.tanggal_lahir_input.date().toString("yyyy-MM-dd"),
@@ -504,6 +516,7 @@ class FormWidget(QWidget):
             "no_hp": self.no_hp_input.text(),
             "files_to_add": self.files_to_add, "files_to_remove": self.files_to_remove
         }
+        
         if self.current_edit_id is None:
             success, message = db_manager.save_data(data)
         else:
@@ -520,6 +533,7 @@ class FormWidget(QWidget):
         self.nama_input.clear()
         self.status_input.setCurrentIndex(0)
         self.keterangan_input.clear()
+        self.catatan_input.clear() # <-- Baris Ditambahkan
         
         # --- BARIS BARU ---
         self.status_hubungan_input.setCurrentIndex(0)

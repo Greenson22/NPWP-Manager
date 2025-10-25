@@ -4,7 +4,7 @@
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QPushButton, QMessageBox, 
     QTableWidget, QTableWidgetItem, QHeaderView, QMenu,
-    QHBoxLayout, QLineEdit, QCheckBox # <-- Tambahkan QCheckBox
+    QHBoxLayout, QLineEdit, QCheckBox 
 )
 from PyQt6.QtCore import pyqtSignal, Qt
 from PyQt6.QtGui import QAction
@@ -152,7 +152,10 @@ class ViewWidget(QWidget):
                     # --- LOGIKA PENYAMARAN BARU ---
                     # Jika ini kolom password DAN checkbox tidak dicentang
                     if col_idx == password_col_index and not is_password_shown:
-                        item_text = "••••••••" # Samarkan data
+                        if item_text and item_text != "None":
+                            item_text = "••••••••" # Samarkan data
+                        else:
+                            item_text = "" # Biarkan kosong jika memang kosong
                     # --- AKHIR LOGIKA BARU ---
                     
                     item = QTableWidgetItem(item_text)
@@ -164,13 +167,18 @@ class ViewWidget(QWidget):
                 print(f"Gagal menyembunyikan kolom ID: {e}")
 
             try:
-                # Atur agar kolom alamat dan keterangan bisa melebar
+                # Atur agar kolom alamat, keterangan, dan catatan bisa melebar
                 alamat_col = headers.index("Alamat")
                 self.table_widget.horizontalHeader().setSectionResizeMode(alamat_col, QHeaderView.ResizeMode.Stretch)
                 ket_col = headers.index("Keterangan")
                 self.table_widget.horizontalHeader().setSectionResizeMode(ket_col, QHeaderView.ResizeMode.Stretch)
+                
+                # --- BLOK DIPERBARUI ---
+                catatan_col = headers.index("Catatan")
+                self.table_widget.horizontalHeader().setSectionResizeMode(catatan_col, QHeaderView.ResizeMode.Stretch)
+                # --- AKHIR PERUBAHAN ---
             except ValueError:
-                pass 
+                pass # Abaikan jika salah satu kolom tidak ada
 
         else:
             QMessageBox.critical(self, "Error", data)

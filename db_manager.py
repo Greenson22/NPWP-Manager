@@ -18,6 +18,7 @@ def init_db():
         conn = sqlite3.connect(DB_NAME)
         cursor = conn.cursor()
         
+        # --- KUERI DIPERBARUI ---
         query_buat_tabel = f'''
         CREATE TABLE IF NOT EXISTS {NAMA_TABEL} (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -35,9 +36,11 @@ def init_db():
             nama_ibu TEXT,
             email TEXT,
             password TEXT,
-            no_hp TEXT
+            no_hp TEXT,
+            catatan TEXT 
         )
         '''
+        # --- AKHIR PERUBAHAN ---
         cursor.execute(query_buat_tabel)
         
         # --- BLOK MIGRASI BARU ---
@@ -48,22 +51,32 @@ def init_db():
         # Buat daftar nama kolom yang ada
         columns = [row[1] for row in cursor.fetchall()] 
         
-        # 2. Cek apakah kolom baru ('status_hubungan') ada di daftar
+        # 2. Cek apakah kolom 'status_hubungan' ada
         if 'status_hubungan' not in columns:
             try:
                 print("Menjalankan migrasi: Menambahkan kolom 'status_hubungan'...")
-                # Jika tidak ada, tambahkan kolom baru
                 cursor.execute(f"ALTER TABLE {NAMA_TABEL} ADD COLUMN status_hubungan TEXT")
-                print("Migrasi database berhasil.")
+                print("Migrasi 'status_hubungan' berhasil.")
             except Exception as e:
-                print(f"Migrasi database GAGAL: {e}")
-        # --- AKHIR BLOK MIGRASI ---
+                print(f"Migrasi 'status_hubungan' GAGAL: {e}")
+
+        # --- MIGRASI BARU UNTUK CATATAN ---
+        if 'catatan' not in columns:
+            try:
+                print("Menjalankan migrasi: Menambahkan kolom 'catatan'...")
+                cursor.execute(f"ALTER TABLE {NAMA_TABEL} ADD COLUMN catatan TEXT")
+                print("Migrasi 'catatan' berhasil.")
+            except Exception as e:
+                print(f"Migrasi 'catatan' GAGAL: {e}")
+        # --- AKHIR MIGRASI BARU ---
         
         conn.commit()
         conn.close()
         print(f"Database {DB_NAME}, tabel {NAMA_TABEL}, dan folder {BASE_DOC_FOLDER} berhasil diinisialisasi.")
     except Exception as e:
         print(f"Error saat inisialisasi DB: {e}")
+
+# ... (Sisa file db_manager.py tidak perlu diubah karena sudah dinamis) ...
 
 def save_data(data: dict):
     """Menyimpan data ke DB dan file ke filesystem."""

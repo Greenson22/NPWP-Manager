@@ -12,48 +12,19 @@ from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QFormLayout, QLineEdit, QComboBox, 
     QTextEdit, QPushButton, QMessageBox, QGroupBox, QDateEdit, QHBoxLayout,
     QListWidget, QListWidgetItem, QFileDialog, 
-    QScrollArea, QApplication, QTabWidget, QCheckBox 
+    QScrollArea, QCheckBox 
 )
 # --- IMPOR DIPERBARUI ---
-from PyQt6.QtCore import QDate, QRegularExpression, pyqtSignal, Qt, QObject, QThread, pyqtSlot
+from PyQt6.QtCore import QDate, QRegularExpression, pyqtSignal, pyqtSlot
 
-from PyQt6.QtGui import QRegularExpressionValidator, QCursor
+from PyQt6.QtGui import QRegularExpressionValidator
 
 # --- IMPOR KUSTOM ---
 import db_manager
 from config import BASE_DOC_FOLDER
-import gemini_parser 
+# Hapus: import gemini_parser 
 
-# --- KELAS WORKER BARU (Tidak Berubah) ---
-class GeminiWorker(QObject):
-    """
-    Worker thread untuk menjalankan panggilan API Gemini
-    tanpa membekukan UI.
-    """
-    finished = pyqtSignal(bool, object) 
-    progress = pyqtSignal(str)
-
-    def __init__(self, image_paths: list[str]):
-        super().__init__()
-        self.image_paths = image_paths
-
-    def run(self):
-        """Tugas yang akan dijalankan di thread terpisah."""
-        try:
-            self.progress.emit("Memvalidasi API...")
-            if not gemini_parser.api_is_configured:
-                # Ambil pesan error yang sudah disimpan
-                raise Exception(gemini_parser.api_init_error_message or "API Key belum dikonfigurasi.")
-            
-            self.progress.emit("Memuat gambar...")
-            self.progress.emit(f"Mengirim {len(self.image_paths)} gambar ke Google Gemini ({gemini_parser.current_model_name})... Ini mungkin memakan waktu beberapa detik...")
-            
-            success, result = gemini_parser.extract_data_from_images(self.image_paths)
-            
-            self.finished.emit(success, result)
-            
-        except Exception as e:
-            self.finished.emit(False, f"Terjadi kesalahan di thread: {e}")
+# Hapus: Seluruh kelas GeminiWorker
 
 
 # --- KELAS FORM WIDGET (DIPERBARUI DENGAN TABS) ---
@@ -68,8 +39,8 @@ class FormWidget(QWidget):
         self.files_to_add = set()
         self.files_to_remove = set()
         
-        self.thread = None
-        self.worker = None
+        # Hapus: self.thread = None
+        # Hapus: self.worker = None
         
         # --- DAFTAR STATUS HUBUNGAN BARU ---
         self.STATUS_HUBUNGAN_LIST = [
@@ -77,7 +48,7 @@ class FormWidget(QWidget):
             "Orang tua", "Mertua", "Family Lain", "Pembantu", "Lainnya"
         ]
         
-        self.tab_widget = QTabWidget() 
+        # Hapus: self.tab_widget = QTabWidget() 
         
         self.init_ui()
 
@@ -85,28 +56,11 @@ class FormWidget(QWidget):
         """Menginisialisasi User Interface (UI) untuk form."""
         
         main_layout = QVBoxLayout(self)
-        main_layout.addWidget(self.tab_widget) 
+        # Hapus: main_layout.addWidget(self.tab_widget) 
 
-        # --- Buat Tab 1: Fitur AI (Akan ditempatkan di kanan) ---
-        ai_tab = QWidget()
-        ai_layout = QVBoxLayout(ai_tab)
+        # Hapus: Seluruh Tab 1: Fitur AI
         
-        self.ai_fill_btn = QPushButton("🤖 Isi Otomatis dari KTP/KK...")
-        self.ai_fill_btn.setStyleSheet("background-color: #0275d8; color: white; padding: 8px; border-radius: 4px;")
-        self.ai_fill_btn.clicked.connect(self.on_ai_fill)
-        ai_layout.addWidget(self.ai_fill_btn)
-        
-        group_log_ai = QGroupBox("Log Proses AI")
-        layout_log_ai = QVBoxLayout()
-        self.ai_log_output = QTextEdit()
-        self.ai_log_output.setReadOnly(True)
-        self.ai_log_output.append("Selamat datang! Silakan klik tombol 'Isi Otomatis' di atas.")
-        layout_log_ai.addWidget(self.ai_log_output)
-        group_log_ai.setLayout(layout_log_ai)
-        ai_layout.addWidget(group_log_ai) 
-        ai_layout.addStretch() 
-        
-        # --- Buat Tab 2: Formulir Pendaftaran (Akan ditempatkan di kiri) ---
+        # --- Buat Formulir Pendaftaran (Sekarang layout utama) ---
         form_scroll_area = QScrollArea()
         form_scroll_area.setWidgetResizable(True)
         
@@ -115,21 +69,8 @@ class FormWidget(QWidget):
         
         form_layout = QVBoxLayout(form_content_widget)
 
-        # --- Logika Pengecekan API ---
-        if not gemini_parser.api_is_configured:
-            self.disable_ai_button(
-                "API Key Belum Dikonfigurasi (Cek Menu File)"
-            )
-            self.ai_log_output.clear()
-            self.ai_log_output.setStyleSheet("color: #D32F2F;") # Merah
-            self.ai_log_output.append("--- KONEKSI API GAGAL ---")
-            error_detail = gemini_parser.api_init_error_message or "Alasan tidak diketahui."
-            self.ai_log_output.append(f"\nPesan Error:\n{error_detail}")
-            self.ai_log_output.append("\n--- SOLUSI ---")
-            self.ai_log_output.append("1. Buka menu 'File' -> 'Konfigurasi API Key...'.")
-            self.ai_log_output.append("2. Masukkan API Key yang valid (misal dari Google AI Studio).")
-            self.ai_log_output.append("3. Tutup dan jalankan ulang aplikasi ini setelah menyimpan Key.")
-
+        # Hapus: Seluruh Logika Pengecekan API
+        
         nik_validator = QRegularExpressionValidator(QRegularExpression(r'\d{16}'))
 
         # --- Grup 1: Status Pendaftaran ---
@@ -265,9 +206,10 @@ class FormWidget(QWidget):
         form_layout.addWidget(group_dokumen)
         form_layout.addLayout(layout_tombol)
 
-        # --- Tambahkan kedua tab ke QTabWidget ---
-        self.tab_widget.addTab(form_scroll_area, "Formulir Pendaftaran")
-        self.tab_widget.addTab(ai_tab, "🤖 Isi Otomatis (AI)")
+        # --- Tambahkan scroll area ke layout utama ---
+        main_layout.addWidget(form_scroll_area)
+        
+        # Hapus: self.tab_widget.addTab(...)
 
     # --- FUNGSI BARU UNTUK PASSWORD ---
     @pyqtSlot(bool)
@@ -279,82 +221,13 @@ class FormWidget(QWidget):
             self.password_input.setEchoMode(QLineEdit.EchoMode.Password)
     # --- AKHIR FUNGSI BARU ---
 
-    # --- FUNGSI AI DIPERBARUI (THREADING) ---
+    # Hapus: Seluruh method terkait AI
+    # Hapus: update_ai_log
+    # Hapus: on_ai_fill
+    # Hapus: on_ai_finished
+    # Hapus: enable_ai_button
+    # Hapus: disable_ai_button
     
-    @pyqtSlot(str)
-    def update_ai_log(self, message: str):
-        """Slot untuk menerima pesan dari worker dan menampilkannya."""
-        self.ai_log_output.append(f"LOG: {message}")
-
-    def on_ai_fill(self):
-        """1. Mempersiapkan dan memulai worker thread."""
-        
-        if self.thread is not None and self.thread.isRunning():
-            QMessageBox.warning(self, "Info", "Proses AI lain sedang berjalan. Harap tunggu.")
-            return
-
-        files, _ = QFileDialog.getOpenFileNames(
-            self,
-            "Pilih Gambar KTP dan Kartu Keluarga (Bisa >1 file)",
-            "", 
-            "Images (*.png *.jpg *.jpeg *.webp)"
-        )
-        
-        if not files:
-            return 
-
-        self.ai_log_output.clear()
-        self.ai_log_output.setStyleSheet("color: black;") 
-        self.update_ai_log("Mempersiapkan thread...")
-        self.ai_fill_btn.setEnabled(False)
-        self.ai_fill_btn.setText("🤖 Memproses...")
-        self.setCursor(QCursor(Qt.CursorShape.WaitCursor))
-
-        self.thread = QThread()
-        self.worker = GeminiWorker(files)
-        self.worker.moveToThread(self.thread)
-
-        self.thread.started.connect(self.worker.run) 
-        self.worker.finished.connect(self.on_ai_finished) 
-        self.worker.progress.connect(self.update_ai_log)
-        
-        self.worker.finished.connect(self.thread.quit)
-        self.worker.finished.connect(self.worker.deleteLater)
-        self.thread.finished.connect(self.thread.deleteLater)
-        self.thread.finished.connect(lambda: print("Thread AI Selesai dan dibersihkan."))
-
-        self.thread.start()
-
-    @pyqtSlot(bool, object)
-    def on_ai_finished(self, success: bool, result: object):
-        """2. Dipanggil saat worker thread selesai."""
-        
-        self.enable_ai_button() 
-        self.unsetCursor()
-        
-        if success:
-            self.update_ai_log("Data berhasil diekstrak dari API.")
-            QMessageBox.information(self, "Sukses", "Data berhasil digabungkan! Harap periksa kembali isiannya.")
-            self.populate_form_with_ai_data(result)
-            self.tab_widget.setCurrentIndex(0)
-        else:
-            self.update_ai_log(f"ERROR: {result}")
-            self.ai_log_output.setStyleSheet("color: #D32F2F;") # Merah
-            QMessageBox.critical(self, "Error AI", f"Gagal memproses gambar:\n{result}")
-
-    # --- FUNGSI HELPER BARU UNTUK UI ---
-    
-    def enable_ai_button(self):
-        """Mengaktifkan tombol AI."""
-        self.ai_fill_btn.setEnabled(True)
-        self.ai_fill_btn.setText("🤖 Isi Otomatis dari KTP/KK...")
-        self.ai_fill_btn.setStyleSheet("background-color: #0275d8; color: white; padding: 8px; border-radius: 4px;")
-        
-    def disable_ai_button(self, text: str):
-        """Menonaktifkan tombol AI dengan pesan."""
-        self.ai_fill_btn.setEnabled(False)
-        self.ai_fill_btn.setText(f"🤖 {text}")
-        self.ai_fill_btn.setStyleSheet("background-color: #888; color: #ccc; padding: 8px; border-radius: 4px;")
 
     # --- LOGIKA KUSTOM BARU UNTUK FORM ---
     
@@ -378,41 +251,7 @@ class FormWidget(QWidget):
 
     # --- FUNGSI LAIN (DIPERBARUI) ---
 
-    def populate_form_with_ai_data(self, data: dict):
-        print(f"Mengisi form dengan data: {data}")
-        if data.get('nama'): self.nama_input.setText(data.get('nama'))
-        
-        # --- BLOK BARU ---
-        if data.get('status_hubungan'):
-            # Cari teks di combobox
-            index = self.status_hubungan_input.findText(data.get('status_hubungan'), Qt.MatchFlag.MatchFixedString)
-            if index >= 0:
-                self.status_hubungan_input.setCurrentIndex(index)
-            else:
-                # Jika tidak ada di daftar standar, tambahkan sementara?
-                # Atau biarkan kosong? Kita set ke 'Lainnya' jika ada.
-                index_lainnya = self.status_hubungan_input.findText("Lainnya")
-                if index_lainnya >= 0:
-                     self.status_hubungan_input.setCurrentIndex(index_lainnya)
-                print(f"Status hubungan '{data.get('status_hubungan')}' dari AI tidak ada di daftar.")
-        # --- AKHIR BLOK ---
-        
-        if data.get('nik'): self.nik_input.setText(data.get('nik'))
-        if data.get('nik_kk'): self.nik_kk_input.setText(data.get('nik_kk'))
-        if data.get('no_kk'): self.no_kk_input.setText(data.get('no_kk'))
-        if data.get('tempat_lahir'): self.tempat_lahir_input.setText(data.get('tempat_lahir'))
-        if data.get('alamat'): self.alamat_input.setPlainText(data.get('alamat'))
-        if data.get('tanggal_lahir'):
-            tgl = QDate.fromString(data.get('tanggal_lahir'), "yyyy-MM-dd")
-            if not tgl.isValid():
-                tgl = QDate.fromString(data.get('tanggal_lahir'), "dd-MM-yyyy")
-            if tgl.isValid():
-                self.tanggal_lahir_input.setDate(tgl)
-            else:
-                print(f"Format tanggal dari AI tidak valid: {data.get('tanggal_lahir')}")
-        
-        # Panggil handler secara manual untuk update state NIK KK
-        self.on_status_hubungan_changed()
+    # Hapus: populate_form_with_ai_data
 
     def on_add_files(self):
         files, _ = QFileDialog.getOpenFileNames(self, "Pilih Dokumen", "", "Semua File (*.*)")
@@ -483,8 +322,7 @@ class FormWidget(QWidget):
         self.current_doc_folder = Path(BASE_DOC_FOLDER) / data_row['nik']
         self._populate_file_list()
         
-        # Pastikan mulai di tab formulir (indeks 0)
-        self.tab_widget.setCurrentIndex(0)
+        # Hapus: self.tab_widget.setCurrentIndex(0)
         
         # --- PANGGILAN BARU ---
         # Panggil handler secara manual untuk mengatur state read-only NIK KK
@@ -567,24 +405,6 @@ class FormWidget(QWidget):
         self.nik_kk_input.setReadOnly(False)
         # --- AKHIR PERUBAHAN ---
         
-        # --- BLOK LOGIKA DIPERBARUI ---
-        if gemini_parser.api_is_configured:
-            self.ai_log_output.setStyleSheet("color: black;")
-            self.ai_log_output.setText("Silakan klik tombol 'Isi Otomatis' di atas.")
-            self.enable_ai_button()
-        else:
-            self.ai_log_output.clear()
-            self.ai_log_output.setStyleSheet("color: #D32F2F;") # Merah
-            self.ai_log_output.append("--- KONEKSI API GAGAL ---")
-            error_detail = gemini_parser.api_init_error_message or "Alasan tidak diketahui."
-            self.ai_log_output.append(f"\nPesan Error:\n{error_detail}")
-            self.ai_log_output.append("\n--- SOLUSI ---")
-            self.ai_log_output.append("1. Buka menu 'File' -> 'Konfigurasi API Key...'.")
-            self.ai_log_output.append("2. Masukkan API Key yang valid (misal dari Google AI Studio).")
-            self.ai_log_output.append("3. Tutup dan jalankan ulang aplikasi ini setelah menyimpan Key.")
-            self.disable_ai_button("API Key Belum Dikonfigurasi")
+        # Hapus: Seluruh blok logika if gemini_parser.api_is_configured:
         
-        # --- PERUBAHAN DI SINI ---
-        # Saat membersihkan form, kembali ke tab Formulir (indeks 0)
-        self.tab_widget.setCurrentIndex(0)
-        # ------------------
+        # Hapus: self.tab_widget.setCurrentIndex(0)

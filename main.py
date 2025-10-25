@@ -14,12 +14,11 @@ import db_manager
 from form_widget import FormWidget
 from view_widget import ViewWidget
 from detail_widget import DetailWidget
-import gemini_parser
+# Hapus: import gemini_parser
 
 # Tentukan nama file env
 ENV_FILE_PATH = ".myenv"
-# --- (BARU) Tentukan model default ---
-DEFAULT_MODEL = "gemini-2.5-flash"
+# Hapus: DEFAULT_MODEL
 
 
 class MainWindow(QMainWindow):
@@ -29,34 +28,26 @@ class MainWindow(QMainWindow):
         self.setWindowTitle('Aplikasi Pendaftaran NPWP')
         self.setGeometry(100, 100, 800, 700)
         
-        self.load_and_init_api() 
+        # Hapus: self.load_and_init_api() 
         
         self.setup_main_widgets() 
         self.setup_menu()         
         
         self.show_add_new_form() 
 
-    def load_and_init_api(self):
-        """Memuat API Key & Model dari .myenv dan menginisialisasi Gemini."""
-        load_dotenv(dotenv_path=ENV_FILE_PATH) 
-        
-        api_key = os.environ.get("GOOGLE_API_KEY")
-        model_name = os.environ.get("GEMINI_MODEL_NAME", DEFAULT_MODEL)
-        
-        # Beri tahu parser untuk menginisialisasi (menggunakan API key)
-        gemini_parser.init_api(api_key)
-        # Beri tahu parser model mana yang harus digunakan
-        gemini_parser.set_model(model_name) 
+    # Hapus: Seluruh method load_and_init_api()
 
     def setup_menu(self):
         """Membuat dan mengatur Menu Bar."""
         menu_bar = self.menuBar()
         
         file_menu = menu_bar.addMenu('File')
-        config_action = QAction('Konfigurasi API Key...', self)
-        config_action.triggered.connect(self.configure_api_key)
-        file_menu.addAction(config_action)
-        file_menu.addSeparator()
+        
+        # Hapus: config_action = QAction('Konfigurasi API Key...', self)
+        # Hapus: config_action.triggered.connect(self.configure_api_key)
+        # Hapus: file_menu.addAction(config_action)
+        # Hapus: file_menu.addSeparator()
+        
         exit_action = QAction('Keluar', self)
         exit_action.triggered.connect(self.close)
         file_menu.addAction(exit_action)
@@ -69,78 +60,15 @@ class MainWindow(QMainWindow):
         view_data_action.triggered.connect(self.show_view_page)
         nav_menu.addAction(view_data_action)
 
-        settings_menu = menu_bar.addMenu('Pengaturan')
-        model_action = QAction('Pilih Model Gemini...', self)
-        model_action.triggered.connect(self.select_gemini_model)
-        settings_menu.addAction(model_action)
+        # Hapus: Seluruh 'settings_menu'
+        # Hapus: settings_menu = menu_bar.addMenu('Pengaturan')
+        # Hapus: model_action = QAction('Pilih Model Gemini...', self)
+        # Hapus: model_action.triggered.connect(self.select_gemini_model)
+        # Hapus: settings_menu.addAction(model_action)
 
-    def configure_api_key(self):
-        """Menampilkan dialog untuk memasukkan/mengedit API Key."""
-        current_key = os.environ.get("GOOGLE_API_KEY", "")
-        new_key, ok = QInputDialog.getText(
-            self, "Konfigurasi API Key", 
-            "Masukkan Google Gemini API Key Anda:", 
-            QLineEdit.EchoMode.Password, current_key
-        )
-        
-        if ok and new_key and new_key != current_key:
-            try:
-                set_key(dotenv_path=ENV_FILE_PATH, key_to_set="GOOGLE_API_KEY", value_to_set=new_key) 
-                os.environ["GOOGLE_API_KEY"] = new_key
-                gemini_parser.init_api(new_key)
-                
-                if hasattr(self, 'form_page'):
-                    self.form_page.enable_ai_button()
-                    self.form_page.update_ai_log("API Key berhasil diaktifkan.")
+    # Hapus: Seluruh method configure_api_key()
 
-                QMessageBox.information(self, "Sukses", "API Key berhasil disimpan dan diaktifkan.")
-            except Exception as e:
-                QMessageBox.critical(self, "Error", f"Gagal menyimpan API Key: {e}")
-        elif ok:
-             QMessageBox.information(self, "Info", "API Key tidak berubah.")
-
-    def select_gemini_model(self):
-        """Menampilkan dialog dropdown untuk memilih model AI."""
-        
-        # --- (DIPERBARUI) Daftar model baru berdasarkan info Anda ---
-        models = [
-            "gemini-2.5-pro",   
-            "gemini-2.5-flash", 
-            "gemini-2.5-flash-lite"
-        ]
-        
-        current_model = os.environ.get("GEMINI_MODEL_NAME", DEFAULT_MODEL)
-        
-        try:
-            current_index = models.index(current_model)
-        except ValueError:
-            # Jika model di .myenv tidak ada di daftar, 
-            # tambahkan ke daftar agar bisa dipilih
-            if current_model not in models:
-                models.insert(0, current_model) 
-            current_index = 0
-        
-        new_model, ok = QInputDialog.getItem(
-            self,
-            "Pilih Model Gemini",
-            "Pilih model AI yang akan digunakan:",
-            models,
-            current_index,
-            editable=False # <-- Ini adalah perbaikan typo (bukan 'isEditable')
-        )
-        
-        if ok and new_model and new_model != current_model:
-            try:
-                set_key(dotenv_path=ENV_FILE_PATH, key_to_set="GEMINI_MODEL_NAME", value_to_set=new_model)
-                os.environ["GEMINI_MODEL_NAME"] = new_model
-                gemini_parser.set_model(new_model)
-                
-                if hasattr(self, 'form_page'):
-                    self.form_page.update_ai_log(f"Model AI diubah ke: {new_model}")
-                
-                QMessageBox.information(self, "Sukses", f"Model AI telah diatur ke: {new_model}")
-            except Exception as e:
-                QMessageBox.critical(self, "Error", f"Gagal menyimpan model: {e}")
+    # Hapus: Seluruh method select_gemini_model()
 
     def setup_main_widgets(self):
         self.stacked_widget = QStackedWidget()

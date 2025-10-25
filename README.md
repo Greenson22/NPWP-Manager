@@ -1,22 +1,37 @@
-# Aplikasi Pendaftaran NPWP (Desktop)
+<div align="center">
 
-Aplikasi desktop sederhana yang dibuat dengan Python dan PyQt6 untuk mengelola data pendaftaran NPWP dan mengarsipkan dokumen terkait.
+# 🗂️ Aplikasi Pendaftaran NPWP
 
-## Fitur
+**Aplikasi desktop sederhana untuk mengelola data pendaftaran NPWP dan mengarsipkan dokumen terkait.**
 
-* Manajemen data pendaftaran (CRUD - Create, Read, Update, Delete).
-* Formulir pendaftaran dengan validasi NIK.
-* Logika kustom untuk NIK Kepala Keluarga.
-* Manajemen dokumen per pendaftar (Tambah/Hapus file, Buka folder).
-* Tampilan tabel data dengan fitur pencarian (Nama/NIK) dan *context menu* (Edit, Hapus, Detail).
-* Tampilan detail *read-only*.
-* Fitur "Tampilkan Password" di tabel dan form.
-* Bantuan AI Eksternal:
-    * Salin *prompt* dan skema JSON untuk digunakan di alat eksternal (spt. Google AI Studio).
-    * Impor hasil JSON untuk mengisi formulir secara otomatis.
-* Dialog "Tentang Aplikasi" dengan informasi pengembang.
+![Python](https://img.shields.io/badge/Python-3776AB?style=for-the-badge&logo=python&logoColor=white)
+![PyQt6](https://img.shields.io/badge/PyQt6-41CD52?style=for-the-badge&logo=qt&logoColor=white)
+![Database](https://img.shields.io/badge/Database-SQLite-003B57?style=for-the-badge&logo=sqlite&logoColor=white)
 
-## Setup dan Instalasi
+</div>
+
+---
+
+Aplikasi ini dibuat dengan **Python** dan **PyQt6** sebagai antarmuka *front-end*, dengan **SQLite** sebagai database lokal untuk menyimpan semua data pendaftaran.
+
+## ✨ Fitur Utama
+
+* **📝 Manajemen Data (CRUD)**: Buat, Baca, Perbarui, dan Hapus data pendaftaran dengan mudah.
+* **✅ Validasi Formulir**: Dilengkapi validasi NIK (16 digit) dan logika kustom untuk sinkronisasi NIK Kepala Keluarga.
+* **🗂️ Manajemen Dokumen**: Unggah, hapus, dan buka folder dokumen yang terkait dengan setiap pendaftar.
+* **📊 Tampilan Tabel Interaktif**:
+    * Cari data secara dinamis berdasarkan **Nama** atau **NIK**.
+    * Klik kanan untuk menu konteks (Lihat Detail, Edit, Hapus).
+    * Sembunyikan/tampilkan password di tabel.
+* **🔒 Tampilan Detail**: Mode *read-only* untuk meninjau data tanpa risiko mengedit.
+* **🤖 Bantuan AI Eksternal**:
+    * **Salin Prompt**: Hasilkan dan salin *system prompt* beserta skema JSON untuk digunakan di alat eksternal (seperti Google AI Studio).
+    * **Impor JSON**: Tempelkan hasil JSON dari AI untuk mengisi data formulir secara otomatis.
+* **ℹ️ Tentang Aplikasi**: Dialog "Tentang Aplikasi" yang menampilkan informasi pengembang dan tautan kontak.
+
+---
+
+## 🚀 Instalasi dan Setup
 
 Pastikan Anda memiliki **Python 3.8** atau versi yang lebih baru terinstal di sistem Anda.
 

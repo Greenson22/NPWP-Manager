@@ -52,6 +52,12 @@ class DetailWidget(QScrollArea):
         layout_data_diri = QFormLayout()
         self.nama_display = QLineEdit()
         self.nama_display.setReadOnly(True)
+        
+        # --- WIDGET BARU ---
+        self.status_hubungan_display = QLineEdit()
+        self.status_hubungan_display.setReadOnly(True)
+        # --- AKHIR PERUBAHAN ---
+        
         self.nik_display = QLineEdit()
         self.nik_display.setReadOnly(True)
         self.nik_kk_display = QLineEdit()
@@ -71,6 +77,11 @@ class DetailWidget(QScrollArea):
         self.nama_ibu_display.setReadOnly(True)
         
         layout_data_diri.addRow("Nama Lengkap:", self.nama_display)
+        
+        # --- BARIS BARU ---
+        layout_data_diri.addRow("Status Hub. Keluarga:", self.status_hubungan_display)
+        # --- AKHIR PERUBAHAN ---
+        
         layout_data_diri.addRow("NIK:", self.nik_display)
         layout_data_diri.addRow("NIK Kepala Keluarga:", self.nik_kk_display)
         layout_data_diri.addRow("Nomor Kartu Keluarga:", self.no_kk_display)
@@ -134,6 +145,11 @@ class DetailWidget(QScrollArea):
         self.status_display.setText(data_row['status'] or "-")
         self.keterangan_display.setText(data_row['keterangan'] or "-")
         self.nama_display.setText(data_row['nama'])
+        
+        # --- BARIS BARU ---
+        self.status_hubungan_display.setText(data_row['status_hubungan'] or "-")
+        # --- AKHIR PERUBAHAN ---
+        
         self.nik_display.setText(data_row['nik'])
         self.nik_kk_display.setText(data_row['nik_kk'] or "-")
         self.no_kk_display.setText(data_row['no_kk'] or "-")

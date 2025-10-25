@@ -71,6 +71,12 @@ class FormWidget(QWidget):
         self.thread = None
         self.worker = None
         
+        # --- DAFTAR STATUS HUBUNGAN BARU ---
+        self.STATUS_HUBUNGAN_LIST = [
+            "", "Kepala Keluarga", "Suami", "Istri", "Anak", "Menantu", 
+            "Orang tua", "Mertua", "Family Lain", "Pembantu", "Lainnya"
+        ]
+        
         self.tab_widget = QTabWidget() 
         
         self.init_ui()
@@ -140,6 +146,12 @@ class FormWidget(QWidget):
         group_data_diri = QGroupBox("Data Diri Pemohon")
         layout_data_diri = QFormLayout()
         self.nama_input = QLineEdit()
+        
+        # --- WIDGET BARU ---
+        self.status_hubungan_input = QComboBox()
+        self.status_hubungan_input.addItems(self.STATUS_HUBUNGAN_LIST)
+        # --- AKHIR PERUBAHAN ---
+        
         self.nik_input = QLineEdit()
         self.nik_input.setValidator(nik_validator)
         self.nik_input.setPlaceholderText("16 digit NIK")
@@ -159,6 +171,11 @@ class FormWidget(QWidget):
         self.pekerjaan_input = QLineEdit()
         self.nama_ibu_input = QLineEdit()
         layout_data_diri.addRow("Nama Lengkap:", self.nama_input)
+        
+        # --- BARIS BARU ---
+        layout_data_diri.addRow("Status Hub. Keluarga:", self.status_hubungan_input)
+        # --- AKHIR PERUBAHAN ---
+        
         layout_data_diri.addRow("NIK:", self.nik_input)
         layout_data_diri.addRow("NIK Kepala Keluarga:", self.nik_kk_input)
         layout_data_diri.addRow("Nomor Kartu Keluarga:", self.no_kk_input)
@@ -168,6 +185,11 @@ class FormWidget(QWidget):
         layout_data_diri.addRow("Pekerjaan:", self.pekerjaan_input)
         layout_data_diri.addRow("Nama Ibu Kandung:", self.nama_ibu_input)
         group_data_diri.setLayout(layout_data_diri)
+        
+        # --- KONEKSI SINYAL BARU ---
+        self.status_hubungan_input.currentIndexChanged.connect(self.on_status_hubungan_changed)
+        self.nik_input.textChanged.connect(self.on_nik_changed)
+        # --- AKHIR PERUBAHAN ---
 
         # --- Grup 3: Akun & Kontak ---
         group_akun = QGroupBox("Akun dan Kontak")
@@ -304,11 +326,47 @@ class FormWidget(QWidget):
         self.ai_fill_btn.setText(f"🤖 {text}")
         self.ai_fill_btn.setStyleSheet("background-color: #888; color: #ccc; padding: 8px; border-radius: 4px;")
 
-    # --- FUNGSI LAIN (TIDAK BERUBAH) ---
+    # --- LOGIKA KUSTOM BARU UNTUK FORM ---
+    
+    def on_status_hubungan_changed(self):
+        """Dipanggil saat QComboBox status hubungan berubah."""
+        is_kepala_keluarga = (self.status_hubungan_input.currentText() == "Kepala Keluarga")
+        
+        self.nik_kk_input.setReadOnly(is_kepala_keluarga)
+        if is_kepala_keluarga:
+            # Jika Kepala Keluarga, salin NIK saat ini
+            self.nik_kk_input.setText(self.nik_input.text())
+        else:
+            # Jika bukan, bersihkan dan buat dapat diedit
+            self.nik_kk_input.clear()
+
+    def on_nik_changed(self, text):
+        """Dipanggil saat teks NIK berubah."""
+        # Jika status adalah Kepala Keluarga, update NIK KK secara otomatis
+        if self.status_hubungan_input.currentText() == "Kepala Keluarga":
+            self.nik_kk_input.setText(text)
+
+    # --- FUNGSI LAIN (DIPERBARUI) ---
 
     def populate_form_with_ai_data(self, data: dict):
         print(f"Mengisi form dengan data: {data}")
         if data.get('nama'): self.nama_input.setText(data.get('nama'))
+        
+        # --- BLOK BARU ---
+        if data.get('status_hubungan'):
+            # Cari teks di combobox
+            index = self.status_hubungan_input.findText(data.get('status_hubungan'), Qt.MatchFlag.MatchFixedString)
+            if index >= 0:
+                self.status_hubungan_input.setCurrentIndex(index)
+            else:
+                # Jika tidak ada di daftar standar, tambahkan sementara?
+                # Atau biarkan kosong? Kita set ke 'Lainnya' jika ada.
+                index_lainnya = self.status_hubungan_input.findText("Lainnya")
+                if index_lainnya >= 0:
+                     self.status_hubungan_input.setCurrentIndex(index_lainnya)
+                print(f"Status hubungan '{data.get('status_hubungan')}' dari AI tidak ada di daftar.")
+        # --- AKHIR BLOK ---
+        
         if data.get('nik'): self.nik_input.setText(data.get('nik'))
         if data.get('nik_kk'): self.nik_kk_input.setText(data.get('nik_kk'))
         if data.get('no_kk'): self.no_kk_input.setText(data.get('no_kk'))
@@ -322,6 +380,9 @@ class FormWidget(QWidget):
                 self.tanggal_lahir_input.setDate(tgl)
             else:
                 print(f"Format tanggal dari AI tidak valid: {data.get('tanggal_lahir')}")
+        
+        # Panggil handler secara manual untuk update state NIK KK
+        self.on_status_hubungan_changed()
 
     def on_add_files(self):
         files, _ = QFileDialog.getOpenFileNames(self, "Pilih Dokumen", "", "Semua File (*.*)")
@@ -369,6 +430,11 @@ class FormWidget(QWidget):
         self.nama_input.setText(data_row['nama'])
         self.status_input.setCurrentText(data_row['status'])
         self.keterangan_input.setText(data_row['keterangan'])
+        
+        # --- BARIS BARU ---
+        self.status_hubungan_input.setCurrentText(data_row['status_hubungan'])
+        # --- AKHIR PERUBAHAN ---
+        
         self.nik_input.setText(data_row['nik'])
         self.nik_kk_input.setText(data_row['nik_kk'])
         self.no_kk_input.setText(data_row['no_kk'])
@@ -388,6 +454,11 @@ class FormWidget(QWidget):
         
         # Pastikan mulai di tab formulir (indeks 0)
         self.tab_widget.setCurrentIndex(0)
+        
+        # --- PANGGILAN BARU ---
+        # Panggil handler secara manual untuk mengatur state read-only NIK KK
+        self.on_status_hubungan_changed()
+        # --- AKHIR PERUBAHAN ---
 
     def simpan_data(self):
         nik = self.nik_input.text()
@@ -401,6 +472,7 @@ class FormWidget(QWidget):
             "nama": self.nama_input.text(),
             "status": self.status_input.currentText(),
             "keterangan": self.keterangan_input.text(),
+            "status_hubungan": self.status_hubungan_input.currentText(), # <-- BARU
             "nik": nik, "nik_kk": self.nik_kk_input.text(), "no_kk": self.no_kk_input.text(),
             "tempat_lahir": self.tempat_lahir_input.text(),
             "tanggal_lahir": self.tanggal_lahir_input.date().toString("yyyy-MM-dd"),
@@ -427,6 +499,11 @@ class FormWidget(QWidget):
         self.nama_input.clear()
         self.status_input.setCurrentIndex(0)
         self.keterangan_input.clear()
+        
+        # --- BARIS BARU ---
+        self.status_hubungan_input.setCurrentIndex(0)
+        # --- AKHIR PERUBAHAN ---
+        
         self.nik_input.clear()
         self.nik_kk_input.clear()
         self.no_kk_input.clear()
@@ -444,6 +521,11 @@ class FormWidget(QWidget):
         self.current_doc_folder = None
         self.current_edit_id = None
         self.simpan_btn.setText("Simpan Data")
+        
+        # --- BARIS BARU ---
+        # Pastikan NIK KK dapat diedit lagi
+        self.nik_kk_input.setReadOnly(False)
+        # --- AKHIR PERUBAHAN ---
         
         # --- BLOK LOGIKA DIPERBARUI ---
         if gemini_parser.api_is_configured:

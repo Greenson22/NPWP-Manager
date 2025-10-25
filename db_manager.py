@@ -17,12 +17,14 @@ def init_db():
         conn = sqlite3.connect(DB_NAME)
         cursor = conn.cursor()
         
+        # --- KUERI DIPERBARUI ---
         query_buat_tabel = f'''
         CREATE TABLE IF NOT EXISTS {NAMA_TABEL} (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             nama TEXT NOT NULL,
             status TEXT,
             keterangan TEXT,
+            status_hubungan TEXT, 
             nik TEXT UNIQUE NOT NULL,
             nik_kk TEXT,
             no_kk TEXT,
@@ -36,6 +38,8 @@ def init_db():
             no_hp TEXT
         )
         '''
+        # --- AKHIR PERUBAHAN ---
+        
         cursor.execute(query_buat_tabel)
         conn.commit()
         conn.close()
@@ -194,7 +198,9 @@ def load_data(search_term=""):
         
         # Siapkan parameter dan kueri dasar
         params = []
-        query = f"SELECT {', '.join(KOLOM_DB)} FROM {NAMA_TABEL}"
+        # Ambil kolom dari config
+        kolom_str = ', '.join(KOLOM_DB)
+        query = f"SELECT {kolom_str} FROM {NAMA_TABEL}"
         
         # Tambahkan filter WHERE jika ada search_term
         if search_term:

@@ -1,56 +1,41 @@
 #!/bin/bash
-#
-# Script untuk mengompilasi aplikasi NPWP menggunakan Nuitka.
-#
-# CARA MENGGUNAKAN:
-# 1. Simpan file ini di folder root proyek Anda (di luar folder 'code').
-# 2. Beri izin eksekusi: chmod +x build.sh
-# 3. Jalankan script:    ./build.sh
-#
 
-# --- Konfigurasi ---
-# (Ubah ini jika nama folder virtual environment Anda berbeda)
-VENV_FOLDER=".env"
+# Menampilkan pesan bahwa proses dimulai
+echo "Memulai proses build AplikasiNPWP..."
 
-# Menentukan file Python utama
-MAIN_SCRIPT="main.py"
+# 1. Tentukan path ke virtual environment
+VENV_DIR=".env"
 
-# --------------------
-
-# Hentikan script jika ada perintah yang gagal
-set -e
-
-echo "--- Memulai proses build Nuitka ---"
-
-# 1. Cek dan Aktifkan Virtual Environment
-echo "Mencari virtual environment di: $VENV_FOLDER/"
-if [ ! -d "$VENV_FOLDER" ]; then
-    echo "Error: Folder virtual environment '$VENV_FOLDER' tidak ditemukan."
-    echo "Harap buat dulu (python3 -m venv $VENV_FOLDER) atau perbaiki nama VENV_FOLDER di script ini."
+# 2. Cek apakah virtual environment ada dan bisa diaktifkan
+if [ -f "$VENV_DIR/bin/activate" ]; then
+    echo "Mengaktifkan virtual environment dari '$VENV_DIR'..."
+    source "$VENV_DIR/bin/activate"
+else
+    echo "Error: Virtual environment '$VENV_DIR/bin/activate' tidak ditemukan."
+    echo "Pastikan Anda sudah membuat virtual environment dengan nama '.env'"
     exit 1
 fi
 
-echo "Mengaktifkan virtual environment..."
-#
-# --- INI ADALAH PERBAIKANNYA ---
-# Mengganti 'source' dengan '.' agar kompatibel dengan 'sh'/'dash'
-. "$VENV_FOLDER/bin/activate"
-# ------------------------------
+# 3. Jalankan perintah PyInstaller
+echo "Menjalankan PyInstaller..."
+pyinstaller --onefile \
+            --windowed \
+            --name=AplikasiNPWP \
+            --add-data=".myenv:." \
+            main.py
 
-# 2. Menjalankan Nuitka
-echo "Menjalankan Nuitka untuk $MAIN_SCRIPT..."
-echo "(Proses ini mungkin memakan waktu beberapa menit)"
+# 4. Cek apakah build berhasil
+if [ $? -eq 0 ]; then
+    echo "==================================================="
+    echo "Build SUKSES!"
+    echo "Aplikasi Anda ada di folder: dist/AplikasiNPWP"
+    echo "==================================================="
+else
+    echo "==================================================="
+    echo "Build GAGAL. Silakan cek pesan error di atas."
+    echo "==================================================="
+fi
 
-nuitka --onefile \
-       --enable-plugin=pyqt6 \
-       --output-dir=dist \
-       --remove-output \
-       $MAIN_SCRIPT
-
-echo ""
-echo "--- Build Selesai! ---"
-echo "File eksekutabel Anda telah dibuat di dalam folder 'dist/'."
-echo "CATATAN: Jangan lupa untuk menyertakan file '.myenv' di samping file eksekutabel agar API Key bisa terbaca."
-
-# Deaktivasi (opsional, karena script akan berakhir)
+# 5. (Opsional) Nonaktifkan virtual environment setelah selesai
+echo "Menonaktifkan virtual environment..."
 deactivate

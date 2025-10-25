@@ -24,10 +24,12 @@ current_model_name = ""
 api_init_error_message = "" # <-- VARIABEL BARU UNTUK MENYIMPAN ERROR
 
 # Skema JSON (tidak berubah)
+# --- DIPERBARUI ---
 JSON_SCHEMA = {
     "type": "object",
     "properties": {
         "nama": {"type": "string"},
+        "status_hubungan": {"type": "string", "description": "Status hubungan keluarga dari KK, misal: Kepala Keluarga, Istri, Anak, dll."},
         "nik": {"type": "string"},
         "nik_kk": {"type": "string"},
         "no_kk": {"type": "string"},
@@ -39,15 +41,18 @@ JSON_SCHEMA = {
 }
 
 # Instruksi Sistem (tidak berubah)
+# --- DIPERBARUI ---
 SYSTEM_INSTRUCTION = (
     "Anda adalah asisten OCR yang ahli dalam membaca dokumen kependudukan Indonesia (KTP dan KK).\n"
     "Tugas Anda adalah menganalisis gambar, menggabungkan data dari KTP dan KK, dan mengisi skema JSON yang disediakan.\n\n"
     "ATURAN PRIORITAS:\n"
     "1. Gunakan KTP sebagai sumber utama (prioritas 1) untuk: 'nama', 'nik', 'tempat_lahir', 'tanggal_lahir', 'alamat'.\n"
-    "2. Gunakan Kartu Keluarga (KK) sebagai sumber utama (prioritas 1) untuk: 'no_kk' dan 'nik_kk' (NIK Kepala Keluarga).\n"
+    "2. Gunakan Kartu Keluarga (KK) sebagai sumber utama (prioritas 1) untuk: 'no_kk', 'nik_kk' (NIK Kepala Keluarga), dan 'status_hubungan'.\n"
     "3. Jika data di KTP tidak jelas (misal 'alamat' terpotong), Anda boleh menggunakan data dari KK sebagai cadangan (prioritas 2).\n"
-    "4. Jika data tidak ditemukan di gambar manapun, kembalikan string kosong \"\"."
+    "4. Jika 'status_hubungan' adalah 'Kepala Keluarga', maka 'nik_kk' harus sama dengan 'nik' orang tersebut.\n"
+    "5. Jika data tidak ditemukan di gambar manapun, kembalikan string kosong \"\"."
 )
+# --- AKHIR PERUBAHAN ---
 
 
 def init_api(api_key: str):

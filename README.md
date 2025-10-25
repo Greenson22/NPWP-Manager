@@ -27,7 +27,7 @@ Aplikasi ini dibuat dengan **Python** dan **PyQt6** sebagai antarmuka *front-end
 * **🤖 Bantuan AI Eksternal**:
     * **Salin Prompt**: Hasilkan dan salin *system prompt* beserta skema JSON untuk digunakan di alat eksternal (seperti Google AI Studio).
     * **Impor JSON**: Tempelkan hasil JSON dari AI untuk mengisi data formulir secara otomatis.
-* **ℹ️ Tentang Aplikasi**: Dialog "Tentang Aplikasi" yang menampilkan informasi pengembang dan tautan kontak.
+* **ℹ️ Tentang Aplikasi**: Dialog "Tentang Aplikasi" yang menampilkan informasi pengembang (diambil dari `about_page.dart`) dan tautan kontak.
 
 ---
 
@@ -44,3 +44,29 @@ Buka terminal atau Command Prompt, navigasi ke folder proyek ini, dan jalankan:
 ```sh
 # Buat environment bernama 'venv'
 python -m venv venv
+2. Aktifkan Virtual Environment
+Di Windows (Command Prompt):
+
+Bash
+
+.\venv\Scripts\activate
+Di macOS / Linux (Bash):
+
+Bash
+
+source venv/bin/activate
+Terminal Anda sekarang seharusnya menampilkan (venv) di depannya.
+
+3. Instal Ketergantungan (Package)
+Pip adalah alat penginstal package Python dan sudah otomatis terinstal bersama Python. Gunakan pip untuk menginstal semua package yang ada di file requirements.txt:
+
+Bash
+
+# Perintah ini akan membaca requirements.txt dan menginstal PyQt6 & python-dotenv
+pip install -r requirements.txt
+4. Jalankan Aplikasi
+Setelah semua package terinstal, Anda dapat menjalankan aplikasi utama:
+
+Bash
+
+python code/main.py

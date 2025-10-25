@@ -8,16 +8,16 @@ from pathlib import Path
 from config import DB_NAME, NAMA_TABEL, KOLOM_DB, FIELD_UNTUK_INSERT, BASE_DOC_FOLDER
 
 def init_db():
-    """Membuat database, tabel, dan folder dokumen utama jika belum ada."""
+    """Membuat database, tabel, dan folder dokumen utama jika belum ada.
+    Juga menangani migrasi skema (menambah kolom baru jika perlu)."""
     try:
         # 1. Buat folder dokumen utama
         Path(BASE_DOC_FOLDER).mkdir(exist_ok=True)
         
-        # 2. Buat database dan tabel
+        # 2. Buat database dan tabel (dengan skema LENGKAP terbaru)
         conn = sqlite3.connect(DB_NAME)
         cursor = conn.cursor()
         
-        # --- KUERI DIPERBARUI ---
         query_buat_tabel = f'''
         CREATE TABLE IF NOT EXISTS {NAMA_TABEL} (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -38,9 +38,27 @@ def init_db():
             no_hp TEXT
         )
         '''
-        # --- AKHIR PERUBAHAN ---
-        
         cursor.execute(query_buat_tabel)
+        
+        # --- BLOK MIGRASI BARU ---
+        # Cek apakah database lama perlu diperbarui
+        
+        # 1. Dapatkan info skema tabel saat ini
+        cursor.execute(f"PRAGMA table_info({NAMA_TABEL})")
+        # Buat daftar nama kolom yang ada
+        columns = [row[1] for row in cursor.fetchall()] 
+        
+        # 2. Cek apakah kolom baru ('status_hubungan') ada di daftar
+        if 'status_hubungan' not in columns:
+            try:
+                print("Menjalankan migrasi: Menambahkan kolom 'status_hubungan'...")
+                # Jika tidak ada, tambahkan kolom baru
+                cursor.execute(f"ALTER TABLE {NAMA_TABEL} ADD COLUMN status_hubungan TEXT")
+                print("Migrasi database berhasil.")
+            except Exception as e:
+                print(f"Migrasi database GAGAL: {e}")
+        # --- AKHIR BLOK MIGRASI ---
+        
         conn.commit()
         conn.close()
         print(f"Database {DB_NAME}, tabel {NAMA_TABEL}, dan folder {BASE_DOC_FOLDER} berhasil diinisialisasi.")

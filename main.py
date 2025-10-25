@@ -14,11 +14,10 @@ import db_manager
 from form_widget import FormWidget
 from view_widget import ViewWidget
 from detail_widget import DetailWidget
-# Hapus: import gemini_parser
+from about_dialog import AboutDialog # <-- IMPORT BARU
 
 # Tentukan nama file env
 ENV_FILE_PATH = ".myenv"
-# Hapus: DEFAULT_MODEL
 
 
 class MainWindow(QMainWindow):
@@ -28,25 +27,16 @@ class MainWindow(QMainWindow):
         self.setWindowTitle('Aplikasi Pendaftaran NPWP')
         self.setGeometry(100, 100, 800, 700)
         
-        # Hapus: self.load_and_init_api() 
-        
         self.setup_main_widgets() 
         self.setup_menu()         
         
         self.show_add_new_form() 
-
-    # Hapus: Seluruh method load_and_init_api()
 
     def setup_menu(self):
         """Membuat dan mengatur Menu Bar."""
         menu_bar = self.menuBar()
         
         file_menu = menu_bar.addMenu('File')
-        
-        # Hapus: config_action = QAction('Konfigurasi API Key...', self)
-        # Hapus: config_action.triggered.connect(self.configure_api_key)
-        # Hapus: file_menu.addAction(config_action)
-        # Hapus: file_menu.addSeparator()
         
         exit_action = QAction('Keluar', self)
         exit_action.triggered.connect(self.close)
@@ -60,15 +50,12 @@ class MainWindow(QMainWindow):
         view_data_action.triggered.connect(self.show_view_page)
         nav_menu.addAction(view_data_action)
 
-        # Hapus: Seluruh 'settings_menu'
-        # Hapus: settings_menu = menu_bar.addMenu('Pengaturan')
-        # Hapus: model_action = QAction('Pilih Model Gemini...', self)
-        # Hapus: model_action.triggered.connect(self.select_gemini_model)
-        # Hapus: settings_menu.addAction(model_action)
-
-    # Hapus: Seluruh method configure_api_key()
-
-    # Hapus: Seluruh method select_gemini_model()
+        # --- MENU BARU ---
+        help_menu = menu_bar.addMenu('Bantuan')
+        about_action = QAction('Tentang Aplikasi', self)
+        about_action.triggered.connect(self.show_about_dialog)
+        help_menu.addAction(about_action)
+        # --- AKHIR PERUBAHAN ---
 
     def setup_main_widgets(self):
         self.stacked_widget = QStackedWidget()
@@ -84,6 +71,16 @@ class MainWindow(QMainWindow):
         self.view_page.delete_requested.connect(self.handle_delete_request)
         self.view_page.detail_requested.connect(self.handle_detail_request)
         self.detail_page.back_requested.connect(self.show_view_page)
+    
+    # --- FUNGSI BARU ---
+    def show_about_dialog(self):
+        """Menampilkan dialog 'Tentang Aplikasi'."""
+        try:
+            dialog = AboutDialog(self)
+            dialog.exec()
+        except Exception as e:
+            QMessageBox.critical(self, "Error", f"Gagal membuka dialog: {e}")
+    # --- AKHIR FUNGSI BARU ---
     
     def navigate_to_form_page(self):
         self.stacked_widget.setCurrentWidget(self.form_page)

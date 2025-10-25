@@ -1,10 +1,11 @@
 # form_widget.py
-# Berisi QWidget dengan TABS untuk formulir pendaftaran dan fitur AI
+# Berisi QWidget dengan TABS untuk formulir pendaftaran dan BANTUAN AI
 
 import os
 import shutil
 import platform
 import subprocess
+import json
 from pathlib import Path
 
 # --- IMPOR PYQT ---
@@ -12,20 +13,16 @@ from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QFormLayout, QLineEdit, QComboBox, 
     QTextEdit, QPushButton, QMessageBox, QGroupBox, QDateEdit, QHBoxLayout,
     QListWidget, QListWidgetItem, QFileDialog, 
-    QScrollArea, QCheckBox 
+    QScrollArea, QCheckBox, QTabWidget, QApplication
 )
 # --- IMPOR DIPERBARUI ---
-from PyQt6.QtCore import QDate, QRegularExpression, pyqtSignal, pyqtSlot
+from PyQt6.QtCore import QDate, QRegularExpression, pyqtSignal, pyqtSlot, Qt
 
 from PyQt6.QtGui import QRegularExpressionValidator
 
 # --- IMPOR KUSTOM ---
 import db_manager
-from config import BASE_DOC_FOLDER
-# Hapus: import gemini_parser 
-
-# Hapus: Seluruh kelas GeminiWorker
-
+from config import BASE_DOC_FOLDER, FIELD_UNTUK_INSERT
 
 # --- KELAS FORM WIDGET (DIPERBARUI DENGAN TABS) ---
 class FormWidget(QWidget): 
@@ -39,28 +36,68 @@ class FormWidget(QWidget):
         self.files_to_add = set()
         self.files_to_remove = set()
         
-        # Hapus: self.thread = None
-        # Hapus: self.worker = None
-        
         # --- DAFTAR STATUS HUBUNGAN BARU ---
         self.STATUS_HUBUNGAN_LIST = [
             "", "Kepala Keluarga", "Suami", "Istri", "Anak", "Menantu", 
             "Orang tua", "Mertua", "Family Lain", "Pembantu", "Lainnya"
         ]
         
-        # Hapus: self.tab_widget = QTabWidget() 
+        self.tab_widget = QTabWidget() 
+        
+        # --- DATA BARU UNTUK AI PROMPT ---
+        self.ai_system_instruction = ""
+        self.ai_json_schema = ""
+        self._generate_ai_prompt_assets()
+        # --- AKHIR DATA BARU ---
         
         self.init_ui()
+
+    def _generate_ai_prompt_assets(self):
+        """Membangun string prompt dan skema JSON berdasarkan config.py"""
+        
+        self.ai_system_instruction = (
+            "Anda adalah asisten OCR yang ahli dalam membaca dokumen kependudukan Indonesia (KTP dan KK).\n"
+            "Tugas Anda adalah menganalisis gambar, menggabungkan data dari KTP dan KK, dan mengisi skema JSON yang disediakan.\n\n"
+            "ATURAN PRIORITAS:\n"
+            "1. Gunakan KTP sebagai sumber utama (prioritas 1) untuk: 'nama', 'nik', 'tempat_lahir', 'tanggal_lahir', 'alamat', 'pekerjaan'.\n"
+            "2. Gunakan Kartu Keluarga (KK) sebagai sumber utama (prioritas 1) untuk: 'no_kk', 'nik_kk' (NIK Kepala Keluarga), dan 'status_hubungan'.\n"
+            "3. Jika data di KTP tidak jelas (misal 'alamat' terpotong), Anda boleh menggunakan data dari KK sebagai cadangan (prioritas 2).\n"
+            "4. Jika 'status_hubungan' adalah 'Kepala Keluarga', maka 'nik_kk' harus sama dengan 'nik' orang tersebut.\n"
+            "5. Untuk data yang tidak ada di KTP/KK (seperti 'email', 'password', 'status', 'keterangan', 'catatan'), kembalikan string kosong \"\".\n"
+            "6. 'nama_ibu' biasanya hanya ada di KK.\n"
+            "7. Pastikan 'tanggal_lahir' dalam format YYYY-MM-DD."
+        )
+
+        # Buat properti skema dari FIELD_UNTUK_INSERT di config.py
+        properties = {}
+        for field in FIELD_UNTUK_INSERT:
+            properties[field] = {"type": "string"}
+        
+        # Tambahkan deskripsi khusus
+        properties['tanggal_lahir']['description'] = "Format YYYY-MM-DD"
+        properties['status_hubungan']['description'] = "Contoh: Kepala Keluarga, Istri, Anak"
+        properties['status']['description'] = "Contoh: Berhasil, Pengawasan, Gagal (Kosongkan jika tidak ada)"
+        
+        # Tentukan skema
+        schema = {
+            "type": "object",
+            "properties": properties,
+            "required": ["nama", "nik"] # Hanya perlukan yang utama
+        }
+        
+        # Ubah dict skema menjadi string JSON yang rapi
+        self.ai_json_schema = json.dumps(schema, indent=2)
 
     def init_ui(self):
         """Menginisialisasi User Interface (UI) untuk form."""
         
         main_layout = QVBoxLayout(self)
-        # Hapus: main_layout.addWidget(self.tab_widget) 
+        main_layout.addWidget(self.tab_widget) # Tambahkan Tab Widget ke layout utama
 
-        # Hapus: Seluruh Tab 1: Fitur AI
+        # --- Buat Tab 1: Formulir Pendaftaran ---
+        form_tab = QWidget()
+        form_tab_layout = QVBoxLayout(form_tab)
         
-        # --- Buat Formulir Pendaftaran (Sekarang layout utama) ---
         form_scroll_area = QScrollArea()
         form_scroll_area.setWidgetResizable(True)
         
@@ -69,8 +106,6 @@ class FormWidget(QWidget):
         
         form_layout = QVBoxLayout(form_content_widget)
 
-        # Hapus: Seluruh Logika Pengecekan API
-        
         nik_validator = QRegularExpressionValidator(QRegularExpression(r'\d{16}'))
 
         # --- Grup 1: Status Pendaftaran ---
@@ -79,29 +114,20 @@ class FormWidget(QWidget):
         self.status_input = QComboBox()
         self.status_input.addItems(["", "Berhasil", "Pengawasan", "Gagal"])
         self.keterangan_input = QLineEdit()
-        
-        # --- WIDGET BARU ---
         self.catatan_input = QTextEdit()
-        self.catatan_input.setFixedHeight(60) # Sedikit lebih pendek dari alamat
+        self.catatan_input.setFixedHeight(60) 
         self.catatan_input.setPlaceholderText("Tambahkan catatan internal di sini...")
-        # --- AKHIR PERUBAHAN ---
-        
         layout_status.addRow("Status:", self.status_input)
         layout_status.addRow("Keterangan:", self.keterangan_input)
-        layout_status.addRow("Catatan:", self.catatan_input) # <-- Baris Ditambahkan
-        
+        layout_status.addRow("Catatan:", self.catatan_input)
         group_status.setLayout(layout_status)
         
         # --- Grup 2: Data Diri ---
         group_data_diri = QGroupBox("Data Diri Pemohon")
         layout_data_diri = QFormLayout()
         self.nama_input = QLineEdit()
-        
-        # --- WIDGET BARU ---
         self.status_hubungan_input = QComboBox()
         self.status_hubungan_input.addItems(self.STATUS_HUBUNGAN_LIST)
-        # --- AKHIR PERUBAHAN ---
-        
         self.nik_input = QLineEdit()
         self.nik_input.setValidator(nik_validator)
         self.nik_input.setPlaceholderText("16 digit NIK")
@@ -121,11 +147,7 @@ class FormWidget(QWidget):
         self.pekerjaan_input = QLineEdit()
         self.nama_ibu_input = QLineEdit()
         layout_data_diri.addRow("Nama Lengkap:", self.nama_input)
-        
-        # --- BARIS BARU ---
         layout_data_diri.addRow("Status Hub. Keluarga:", self.status_hubungan_input)
-        # --- AKHIR PERUBAHAN ---
-        
         layout_data_diri.addRow("NIK:", self.nik_input)
         layout_data_diri.addRow("NIK Kepala Keluarga:", self.nik_kk_input)
         layout_data_diri.addRow("Nomor Kartu Keluarga:", self.no_kk_input)
@@ -136,34 +158,25 @@ class FormWidget(QWidget):
         layout_data_diri.addRow("Nama Ibu Kandung:", self.nama_ibu_input)
         group_data_diri.setLayout(layout_data_diri)
         
-        # --- KONEKSI SINYAL BARU ---
         self.status_hubungan_input.currentIndexChanged.connect(self.on_status_hubungan_changed)
         self.nik_input.textChanged.connect(self.on_nik_changed)
-        # --- AKHIR PERUBAHAN ---
 
         # --- Grup 3: Akun & Kontak ---
         group_akun = QGroupBox("Akun dan Kontak")
         layout_akun = QFormLayout()
         self.email_input = QLineEdit()
         self.email_input.setPlaceholderText("contoh@email.com")
-        
-        # --- PERUBAHAN PASSWORD ---
         self.password_input = QLineEdit()
         self.password_input.setEchoMode(QLineEdit.EchoMode.Password)
-        
         self.show_password_checkbox = QCheckBox("Tampilkan")
         self.show_password_checkbox.toggled.connect(self.toggle_password_visibility)
-        
         password_layout = QHBoxLayout()
         password_layout.addWidget(self.password_input)
         password_layout.addWidget(self.show_password_checkbox)
-        # --- AKHIR PERUBAHAN ---
-        
         self.no_hp_input = QLineEdit()
         self.no_hp_input.setPlaceholderText("08...")
-        
         layout_akun.addRow("Email:", self.email_input)
-        layout_akun.addRow("Password:", password_layout) # <-- BARIS DIGANTI
+        layout_akun.addRow("Password:", password_layout)
         layout_akun.addRow("Nomor HP:", self.no_hp_input)
         group_akun.setLayout(layout_akun)
 
@@ -205,13 +218,107 @@ class FormWidget(QWidget):
         form_layout.addWidget(group_akun)
         form_layout.addWidget(group_dokumen)
         form_layout.addLayout(layout_tombol)
-
-        # --- Tambahkan scroll area ke layout utama ---
-        main_layout.addWidget(form_scroll_area)
         
-        # Hapus: self.tab_widget.addTab(...)
+        # --- Masukkan Scroll Area ke Tab 1 ---
+        form_tab_layout.addWidget(form_scroll_area)
+        
+        # --- Buat Tab 2: Bantuan AI (Eksternal) ---
+        ai_tab = QWidget()
+        ai_layout = QVBoxLayout(ai_tab)
+        self.setup_ai_tab(ai_layout) # Panggil fungsi helper baru
 
-    # --- FUNGSI BARU UNTUK PASSWORD ---
+        # --- Tambahkan kedua tab ke QTabWidget ---
+        self.tab_widget.addTab(form_tab, "Formulir Pendaftaran")
+        self.tab_widget.addTab(ai_tab, "🤖 Bantuan AI (Eksternal)")
+
+    # --- FUNGSI HELPER BARU UNTUK TAB AI ---
+    def setup_ai_tab(self, layout: QVBoxLayout):
+        """Membangun UI untuk tab Bantuan AI."""
+        
+        # --- Grup 1: Salin Prompt ---
+        group_prompt = QGroupBox("Langkah 1: Salin Prompt untuk Google AI Studio")
+        layout_prompt = QVBoxLayout()
+        
+        prompt_label = QLabel("Gunakan prompt dan skema JSON ini di AI Studio untuk mengekstrak data dari gambar KTP dan KK Anda.")
+        prompt_label.setWordWrap(True)
+        
+        self.ai_prompt_display = QTextEdit()
+        self.ai_prompt_display.setReadOnly(True)
+        # Gabungkan instruksi dan skema untuk disalin
+        full_prompt_text = f"--- INSTRUKSI SISTEM ---\n{self.ai_system_instruction}\n\n--- SKEMA JSON (Gunakan di 'JSON Mode') ---\n{self.ai_json_schema}"
+        self.ai_prompt_display.setPlainText(full_prompt_text)
+        self.ai_prompt_display.setFixedHeight(200) # Batasi tinggi
+        
+        self.ai_copy_prompt_btn = QPushButton("Salin Prompt & Skema")
+        self.ai_copy_prompt_btn.setStyleSheet("background-color: #0275d8; color: white; padding: 8px; border-radius: 4px;")
+        self.ai_copy_prompt_btn.clicked.connect(self.on_copy_prompt)
+        
+        layout_prompt.addWidget(prompt_label)
+        layout_prompt.addWidget(self.ai_prompt_display)
+        layout_prompt.addWidget(self.ai_copy_prompt_btn)
+        group_prompt.setLayout(layout_prompt)
+        
+        # --- Grup 2: Impor Hasil ---
+        group_import = QGroupBox("Langkah 2: Impor Hasil JSON")
+        layout_import = QVBoxLayout()
+        
+        import_label = QLabel("Tempelkan (paste) hasil JSON yang Anda dapatkan dari AI Studio ke dalam kotak di bawah ini.")
+        import_label.setWordWrap(True)
+        
+        self.ai_json_input = QTextEdit()
+        self.ai_json_input.setPlaceholderText("Contoh: {\n  \"nama\": \"Budi Santoso\",\n  \"nik\": \"317...\"\n  ...\n}")
+        
+        self.ai_import_json_btn = QPushButton("Impor Data JSON")
+        self.ai_import_json_btn.setStyleSheet("background-color: #5cb85c; color: white; padding: 8px; border-radius: 4px;")
+        self.ai_import_json_btn.clicked.connect(self.on_import_json)
+        
+        layout_import.addWidget(import_label)
+        layout_import.addWidget(self.ai_json_input)
+        layout_import.addWidget(self.ai_import_json_btn)
+        group_import.setLayout(layout_import)
+
+        layout.addWidget(group_prompt)
+        layout.addWidget(group_import)
+        layout.addStretch()
+
+    @pyqtSlot()
+    def on_copy_prompt(self):
+        """Menyalin teks dari ai_prompt_display ke clipboard."""
+        try:
+            clipboard = QApplication.clipboard()
+            clipboard.setText(self.ai_prompt_display.toPlainText())
+            QMessageBox.information(self, "Sukses", "Prompt dan Skema JSON telah disalin ke clipboard.")
+        except Exception as e:
+            QMessageBox.critical(self, "Error", f"Gagal menyalin: {e}")
+
+    @pyqtSlot()
+    def on_import_json(self):
+        """Mengambil JSON dari input, mem-parse, dan mengisi formulir."""
+        json_text = self.ai_json_input.toPlainText()
+        if not json_text:
+            QMessageBox.warning(self, "Input Kosong", "Kotak input JSON masih kosong.")
+            return
+            
+        try:
+            # Hapus ```json ... ``` jika ada
+            if json_text.strip().startswith("```json"):
+                json_text = json_text.strip()[7:-3].strip()
+            
+            data = json.loads(json_text)
+            
+            self.populate_form_with_ai_data(data)
+            
+            QMessageBox.information(self, "Sukses", "Data JSON berhasil diimpor ke formulir!")
+            self.tab_widget.setCurrentIndex(0) # Pindah ke tab formulir
+            self.ai_json_input.clear() # Bersihkan input
+            
+        except json.JSONDecodeError as e:
+            QMessageBox.critical(self, "Error JSON", f"Format JSON tidak valid. Pastikan Anda menyalin seluruh blok JSON.\n\nError: {e}")
+        except Exception as e:
+            QMessageBox.critical(self, "Error", f"Terjadi kesalahan saat mengimpor: {e}")
+
+    # --- AKHIR FUNGSI HELPER BARU ---
+
     @pyqtSlot(bool)
     def toggle_password_visibility(self, checked):
         """Mengubah mode tampilan QLineEdit password."""
@@ -219,39 +326,69 @@ class FormWidget(QWidget):
             self.password_input.setEchoMode(QLineEdit.EchoMode.Normal)
         else:
             self.password_input.setEchoMode(QLineEdit.EchoMode.Password)
-    # --- AKHIR FUNGSI BARU ---
 
-    # Hapus: Seluruh method terkait AI
-    # Hapus: update_ai_log
-    # Hapus: on_ai_fill
-    # Hapus: on_ai_finished
-    # Hapus: enable_ai_button
-    # Hapus: disable_ai_button
-    
-
-    # --- LOGIKA KUSTOM BARU UNTUK FORM ---
-    
     def on_status_hubungan_changed(self):
-        """Dipanggil saat QComboBox status hubungan berubah."""
         is_kepala_keluarga = (self.status_hubungan_input.currentText() == "Kepala Keluarga")
-        
         self.nik_kk_input.setReadOnly(is_kepala_keluarga)
         if is_kepala_keluarga:
-            # Jika Kepala Keluarga, salin NIK saat ini
             self.nik_kk_input.setText(self.nik_input.text())
         else:
-            # Jika bukan, bersihkan dan buat dapat diedit
             self.nik_kk_input.clear()
 
     def on_nik_changed(self, text):
-        """Dipanggil saat teks NIK berubah."""
-        # Jika status adalah Kepala Keluarga, update NIK KK secara otomatis
         if self.status_hubungan_input.currentText() == "Kepala Keluarga":
             self.nik_kk_input.setText(text)
 
-    # --- FUNGSI LAIN (DIPERBARUI) ---
+    # --- FUNGSI POPULATE (DIBUAT KEMBALI) ---
+    def populate_form_with_ai_data(self, data: dict):
+        """Mengisi field formulir menggunakan data dari dict (JSON)."""
+        print(f"Mengisi form dengan data: {data}")
+        
+        # Gunakan .get() untuk keamanan jika kunci tidak ada
+        if data.get('nama'): self.nama_input.setText(data.get('nama'))
+        if data.get('nik'): self.nik_input.setText(data.get('nik'))
+        if data.get('nik_kk'): self.nik_kk_input.setText(data.get('nik_kk'))
+        if data.get('no_kk'): self.no_kk_input.setText(data.get('no_kk'))
+        if data.get('tempat_lahir'): self.tempat_lahir_input.setText(data.get('tempat_lahir'))
+        if data.get('alamat'): self.alamat_input.setPlainText(data.get('alamat'))
+        if data.get('pekerjaan'): self.pekerjaan_input.setText(data.get('pekerjaan'))
+        if data.get('nama_ibu'): self.nama_ibu_input.setText(data.get('nama_ibu'))
+        
+        # Field opsional
+        if data.get('email'): self.email_input.setText(data.get('email'))
+        if data.get('password'): self.password_input.setText(data.get('password'))
+        if data.get('no_hp'): self.no_hp_input.setText(data.get('no_hp'))
+        if data.get('catatan'): self.catatan_input.setPlainText(data.get('catatan'))
+        if data.get('keterangan'): self.keterangan_input.setText(data.get('keterangan'))
 
-    # Hapus: populate_form_with_ai_data
+        # Handle ComboBox (Status)
+        if data.get('status'):
+            index = self.status_input.findText(data.get('status'), Qt.MatchFlag.MatchFixedString)
+            if index >= 0: self.status_input.setCurrentIndex(index)
+        
+        # Handle ComboBox (Status Hubungan)
+        if data.get('status_hubungan'):
+            index_hub = self.status_hubungan_input.findText(data.get('status_hubungan'), Qt.MatchFlag.MatchFixedString)
+            if index_hub >= 0:
+                self.status_hubungan_input.setCurrentIndex(index_hub)
+            else:
+                # Jika tidak ada, coba 'Lainnya'
+                index_lainnya = self.status_hubungan_input.findText("Lainnya")
+                if index_lainnya >= 0:
+                     self.status_hubungan_input.setCurrentIndex(index_lainnya)
+        
+        # Handle Tanggal Lahir
+        if data.get('tanggal_lahir'):
+            tgl = QDate.fromString(data.get('tanggal_lahir'), "yyyy-MM-dd")
+            if not tgl.isValid():
+                tgl = QDate.fromString(data.get('tanggal_lahir'), "dd-MM-yyyy")
+            if tgl.isValid():
+                self.tanggal_lahir_input.setDate(tgl)
+            else:
+                print(f"Format tanggal dari AI tidak valid: {data.get('tanggal_lahir')}")
+        
+        # Panggil handler secara manual untuk update state NIK KK
+        self.on_status_hubungan_changed()
 
     def on_add_files(self):
         files, _ = QFileDialog.getOpenFileNames(self, "Pilih Dokumen", "", "Semua File (*.*)")
@@ -296,15 +433,13 @@ class FormWidget(QWidget):
         if not success:
             QMessageBox.critical(self, "Error", f"Gagal memuat data: {data_row}")
             return
+        
+        # Isi semua field dari data_row
         self.nama_input.setText(data_row['nama'])
         self.status_input.setCurrentText(data_row['status'])
         self.keterangan_input.setText(data_row['keterangan'])
-        self.catatan_input.setPlainText(data_row['catatan'] or "") # <-- Baris Ditambahkan
-        
-        # --- BARIS BARU ---
+        self.catatan_input.setPlainText(data_row['catatan'] or "")
         self.status_hubungan_input.setCurrentText(data_row['status_hubungan'])
-        # --- AKHIR PERUBAHAN ---
-        
         self.nik_input.setText(data_row['nik'])
         self.nik_kk_input.setText(data_row['nik_kk'])
         self.no_kk_input.setText(data_row['no_kk'])
@@ -317,17 +452,17 @@ class FormWidget(QWidget):
         self.email_input.setText(data_row['email'])
         self.password_input.setText(data_row['password'])
         self.no_hp_input.setText(data_row['no_hp'])
+        
         self.current_edit_id = user_id
         self.simpan_btn.setText("Update Data")
         self.current_doc_folder = Path(BASE_DOC_FOLDER) / data_row['nik']
         self._populate_file_list()
         
-        # Hapus: self.tab_widget.setCurrentIndex(0)
+        # Pastikan mulai di tab formulir (indeks 0)
+        self.tab_widget.setCurrentIndex(0)
         
-        # --- PANGGILAN BARU ---
         # Panggil handler secara manual untuk mengatur state read-only NIK KK
         self.on_status_hubungan_changed()
-        # --- AKHIR PERUBAHAN ---
 
     def simpan_data(self):
         nik = self.nik_input.text()
@@ -342,7 +477,7 @@ class FormWidget(QWidget):
             "nama": self.nama_input.text(),
             "status": self.status_input.currentText(),
             "keterangan": self.keterangan_input.text(),
-            "catatan": self.catatan_input.toPlainText(), # <-- Baris Ditambahkan
+            "catatan": self.catatan_input.toPlainText(),
             "status_hubungan": self.status_hubungan_input.currentText(), 
             "nik": nik, "nik_kk": self.nik_kk_input.text(), "no_kk": self.no_kk_input.text(),
             "tempat_lahir": self.tempat_lahir_input.text(),
@@ -360,6 +495,7 @@ class FormWidget(QWidget):
         else:
             data['old_nik'] = self.current_doc_folder.name if self.current_doc_folder else nik
             success, message = db_manager.update_data(self.current_edit_id, data)
+            
         if success:
             QMessageBox.information(self, "Sukses", message)
             self.bersihkan_form()
@@ -368,15 +504,12 @@ class FormWidget(QWidget):
             QMessageBox.critical(self, "Database Error", message)
 
     def bersihkan_form(self):
+        # Bersihkan semua field input
         self.nama_input.clear()
         self.status_input.setCurrentIndex(0)
         self.keterangan_input.clear()
-        self.catatan_input.clear() # <-- Baris Ditambahkan
-        
-        # --- BARIS BARU ---
+        self.catatan_input.clear()
         self.status_hubungan_input.setCurrentIndex(0)
-        # --- AKHIR PERUBAHAN ---
-        
         self.nik_input.clear()
         self.nik_kk_input.clear()
         self.no_kk_input.clear()
@@ -387,24 +520,26 @@ class FormWidget(QWidget):
         self.nama_ibu_input.clear()
         self.email_input.clear()
         self.password_input.clear()
-        
-        # --- BARIS BARU ---
-        self.show_password_checkbox.setChecked(False) # Reset checkbox
-        # --- AKHIR PERUBAHAN ---
-        
+        self.show_password_checkbox.setChecked(False)
         self.no_hp_input.clear()
+        
+        # Bersihkan data manajemen file
         self.file_list_widget.clear()
         self.files_to_add.clear()
         self.files_to_remove.clear()
         self.current_doc_folder = None
+        
+        # Bersihkan data AI
+        if hasattr(self, 'ai_json_input'):
+            self.ai_json_input.clear()
+        
+        # Reset state
         self.current_edit_id = None
         self.simpan_btn.setText("Simpan Data")
-        
-        # --- BARIS BARU ---
-        # Pastikan NIK KK dapat diedit lagi
         self.nik_kk_input.setReadOnly(False)
-        # --- AKHIR PERUBAHAN ---
         
-        # Hapus: Seluruh blok logika if gemini_parser.api_is_configured:
-        
-        # Hapus: self.tab_widget.setCurrentIndex(0)
+        # Kembali ke tab formulir
+        self.tab_widget.setCurrentIndex(0)
+
+# --- Perlu tambahkan import QLabel di atas ---
+from PyQt6.QtWidgets import QLabel

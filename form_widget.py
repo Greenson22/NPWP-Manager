@@ -9,28 +9,46 @@ from pathlib import Path
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QFormLayout, QLineEdit, QComboBox, 
     QTextEdit, QPushButton, QMessageBox, QGroupBox, QDateEdit, QHBoxLayout,
-    QListWidget, QListWidgetItem, QFileDialog
+    QListWidget, QListWidgetItem, QFileDialog, 
+    QScrollArea  # <-- 1. IMPORT TAMBAHAN
 )
-from PyQt6.QtCore import QDate, QRegularExpression, pyqtSignal
+from PyQt6.QtCore import QDate, QRegularExpression, pyqtSignal, Qt
 from PyQt6.QtGui import QRegularExpressionValidator
 import db_manager
 from config import BASE_DOC_FOLDER
 
-class FormWidget(QWidget):
+# 2. UBAH INDUK KELAS DARI QWidget MENJADI QScrollArea
+class FormWidget(QScrollArea):
     data_saved = pyqtSignal()
 
     def __init__(self):
         super().__init__()
+        
+        # 3. BUAT WIDGET KONTEN INTERNAL
+        # QScrollArea membutuhkan satu widget anak untuk di-scroll
+        self.content_widget = QWidget()
+        
+        # 4. KONFIGURASI QScrollArea (yaitu 'self')
+        self.setWidgetResizable(True) # Biarkan konten mengisi area
+        self.setWidget(self.content_widget) # Atur widget konten
+        # Atur agar scroll mulus (opsional)
+        self.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        self.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+
+        # Inisialisasi variabel state
         self.current_edit_id = None
         self.current_doc_folder = None
-        # Set untuk melacak file yang akan ditambah/dihapus
         self.files_to_add = set()
         self.files_to_remove = set()
+        
+        # Panggil init_ui seperti biasa
         self.init_ui()
 
     def init_ui(self):
         """Menginisialisasi User Interface (UI) untuk form."""
-        main_layout = QVBoxLayout(self)
+        
+        # 5. TERAPKAN LAYOUT UTAMA KE 'self.content_widget', BUKAN 'self'
+        main_layout = QVBoxLayout(self.content_widget)
 
         nik_validator = QRegularExpressionValidator(QRegularExpression(r'\d{16}'))
 
@@ -91,13 +109,11 @@ class FormWidget(QWidget):
         layout_akun.addRow("Nomor HP:", self.no_hp_input)
         group_akun.setLayout(layout_akun)
 
-        # --- Grup 4: Manajemen Dokumen (BARU) ---
+        # --- Grup 4: Manajemen Dokumen (Sama) ---
         group_dokumen = QGroupBox("Manajemen Dokumen")
         layout_dokumen = QVBoxLayout()
-        
         self.file_list_widget = QListWidget()
         self.file_list_widget.setSelectionMode(QListWidget.SelectionMode.ExtendedSelection)
-
         layout_tombol_doc = QHBoxLayout()
         self.add_file_btn = QPushButton("Tambah File...")
         self.add_file_btn.clicked.connect(self.on_add_files)
@@ -106,12 +122,10 @@ class FormWidget(QWidget):
         self.open_folder_btn = QPushButton("Buka Folder")
         self.open_folder_btn.setStyleSheet("background-color: #5bc0de; color: white; padding: 6px; border-radius: 4px;")
         self.open_folder_btn.clicked.connect(self.on_open_folder)
-        
         layout_tombol_doc.addWidget(self.add_file_btn)
         layout_tombol_doc.addWidget(self.remove_file_btn)
         layout_tombol_doc.addStretch()
         layout_tombol_doc.addWidget(self.open_folder_btn)
-        
         layout_dokumen.addLayout(layout_tombol_doc)
         layout_dokumen.addWidget(self.file_list_widget)
         group_dokumen.setLayout(layout_dokumen)
@@ -127,15 +141,20 @@ class FormWidget(QWidget):
         layout_tombol.addWidget(self.bersihkan_btn)
         layout_tombol.addWidget(self.simpan_btn)
 
+        # --- Tambahkan semua grup ke main_layout (Sama) ---
         main_layout.addWidget(group_status)
         main_layout.addWidget(group_data_diri)
         main_layout.addWidget(group_akun)
-        main_layout.addWidget(group_dokumen) # Tambahkan grup baru
+        main_layout.addWidget(group_dokumen)
         main_layout.addLayout(layout_tombol)
         
-        self.setLayout(main_layout)
+        # 6. HAPUS BARIS 'self.setLayout(main_layout)'
+        # Layout sudah diatur di 'self.content_widget' pada langkah 5.
 
-    # --- FUNGSI DOKUMEN BARU ---
+    # -----------------------------------------------------------------
+    # SEMUA FUNGSI LAIN DI BAWAH INI (on_add_files, simpan_data, dll.)
+    # TIDAK PERLU DIUBAH SAMA SEKALI.
+    # -----------------------------------------------------------------
 
     def on_add_files(self):
         """Buka dialog untuk memilih satu atau beberapa file."""
@@ -162,11 +181,9 @@ class FormWidget(QWidget):
         for item in selected_items:
             item_text = item.text()
             if item_text.startswith("[BARU] "):
-                # Ini file baru, hapus dari 'files_to_add'
                 source_path = item_text.replace("[BARU] ", "")
                 self.files_to_add.discard(source_path)
             else:
-                # Ini file lama, tandai untuk dihapus
                 filename = item_text
                 self.files_to_remove.add(filename)
             
@@ -196,8 +213,6 @@ class FormWidget(QWidget):
                 if file_path.is_file():
                     self.file_list_widget.addItem(file_path.name)
         
-    # --- FUNGSI DIPERBARUI ---
-    
     def load_data_for_edit(self, user_id):
         """Ambil data dari DB dan isi form untuk mode edit."""
         self.bersihkan_form()
@@ -207,7 +222,6 @@ class FormWidget(QWidget):
             QMessageBox.critical(self, "Error", f"Gagal memuat data: {data_row}")
             return
 
-        # Isi semua field
         self.nama_input.setText(data_row['nama'])
         self.status_input.setCurrentText(data_row['status'])
         self.keterangan_input.setText(data_row['keterangan'])
@@ -224,19 +238,16 @@ class FormWidget(QWidget):
         self.password_input.setText(data_row['password'])
         self.no_hp_input.setText(data_row['no_hp'])
 
-        # Set mode edit
         self.current_edit_id = user_id
         self.simpan_btn.setText("Update Data")
         
-        # --- Logika File BARU ---
         self.current_doc_folder = Path(BASE_DOC_FOLDER) / data_row['nik']
-        self._populate_file_list() # Isi list file yang ada
+        self._populate_file_list()
 
 
     def simpan_data(self):
         """Kumpulkan data, termasuk data file, lalu panggil db_manager."""
         
-        # 1. Validasi
         nik = self.nik_input.text()
         if not self.nama_input.text() or not nik:
             QMessageBox.warning(self, "Input Error", "Nama dan NIK wajib diisi!")
@@ -245,7 +256,6 @@ class FormWidget(QWidget):
             QMessageBox.warning(self, "Input Error", "Format NIK tidak valid (harus 16 digit angka).")
             return
         
-        # 2. Kumpulkan data
         data = {
             "nama": self.nama_input.text(),
             "status": self.status_input.currentText(),
@@ -261,22 +271,16 @@ class FormWidget(QWidget):
             "email": self.email_input.text(),
             "password": self.password_input.text(), 
             "no_hp": self.no_hp_input.text(),
-            # --- Data File BARU ---
             "files_to_add": self.files_to_add,
             "files_to_remove": self.files_to_remove
         }
         
-        # 3. Kirim data
         if self.current_edit_id is None:
-            # Mode Tambah Baru (INSERT)
             success, message = db_manager.save_data(data)
         else:
-            # Mode Edit (UPDATE)
-            # Kirim NIK lama jika ada, untuk rename folder
             data['old_nik'] = self.current_doc_folder.name if self.current_doc_folder else nik
             success, message = db_manager.update_data(self.current_edit_id, data)
         
-        # 4. Tampilkan feedback
         if success:
             QMessageBox.information(self, "Sukses", message)
             self.bersihkan_form()
@@ -301,12 +305,10 @@ class FormWidget(QWidget):
         self.password_input.clear()
         self.no_hp_input.clear()
         
-        # --- Reset File BARU ---
         self.file_list_widget.clear()
         self.files_to_add.clear()
         self.files_to_remove.clear()
         self.current_doc_folder = None
         
-        # Reset mode
         self.current_edit_id = None
         self.simpan_btn.setText("Simpan Data")

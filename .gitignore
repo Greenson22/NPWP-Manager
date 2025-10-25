@@ -1,3 +1,4 @@
 .env
 __pycache__
 pendaftaran_npwp.db
+dokumen_npwp

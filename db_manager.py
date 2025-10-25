@@ -94,7 +94,20 @@ def update_data(id_to_update, data: dict):
                 folder_path = new_folder_path # Update path untuk langkah selanjutnya
             except Exception as e:
                 print(f"Gagal me-rename folder: {e}")
-                # Lanjutkan meski gagal rename
+                # Jika gagal rename, tetap gunakan path baru untuk file baru
+                folder_path = new_folder_path
+        else:
+            # Jika NIK tidak berubah, folder_path sudah benar.
+            # Jika NIK berubah TAPI folder lama tidak ada,
+            # kita harus atur folder_path ke NIK yang baru.
+            folder_path = new_folder_path
+            
+        
+        # --- PERBAIKAN BUG ---
+        # Pastikan folder tujuan (baik yang lama/baru) ada sebelum
+        # mencoba menyalin file ke dalamnya.
+        folder_path.mkdir(exist_ok=True)
+        # ---------------------
 
         # 2. Update Database
         conn = sqlite3.connect(DB_NAME)
@@ -160,11 +173,12 @@ def delete_data(id_to_delete):
         return False, f"Gagal menghapus data: {e}"
         
 def get_data_by_id(id_to_fetch):
-    # (Fungsi ini tidak berubah)
+    """Mengambil satu baris data lengkap berdasarkan ID untuk diedit."""
     try:
         conn = sqlite3.connect(DB_NAME)
         conn.row_factory = sqlite3.Row
         cursor = conn.cursor()
+        # Ambil *semua* field (termasuk password) untuk form edit
         cursor.execute(f"SELECT * FROM {NAMA_TABEL} WHERE id = ?", (id_to_fetch,))
         data = cursor.fetchone()
         conn.close()
@@ -178,16 +192,21 @@ def get_data_by_id(id_to_fetch):
         return False, f"Error saat mengambil data by ID: {e}"
 
 def load_data():
-    # (Fungsi ini tidak berubah)
+    """Mengambil semua data dari database untuk ditampilkan di tabel."""
     try:
         conn = sqlite3.connect(DB_NAME)
+        # Menggunakan Row Factory agar bisa memanggil data berdasarkan nama kolom
         conn.row_factory = sqlite3.Row 
         cursor = conn.cursor()
+        
         query = f"SELECT {', '.join(KOLOM_DB)} FROM {NAMA_TABEL} ORDER BY id DESC"
         cursor.execute(query)
-        data = cursor.fetchall()
+        data = cursor.fetchall() # Ini akan menjadi list dari objek sqlite3.Row
         conn.close()
+        
+        # Membuat header yang 'cantik'
         headers = [kol.replace("_", " ").title() for kol in KOLOM_DB]
+        
         return True, data, headers
     except Exception as e:
         return False, f"Gagal memuat data: {e}", []

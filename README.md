@@ -69,4 +69,4 @@ Setelah semua package terinstal, Anda dapat menjalankan aplikasi utama:
 
 Bash
 
-python code/main.py
+python main.py

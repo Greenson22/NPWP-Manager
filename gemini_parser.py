@@ -6,7 +6,6 @@ from PIL import Image
 import json
 
 # --- Variabel Global ---
-# Kita set ke None. Ini akan diisi oleh main.py saat startup.
 model = None
 api_is_configured = False
 
@@ -30,43 +29,57 @@ def init_api(api_key: str):
         api_is_configured = False
         print("Gemini API Key tidak ditemukan. Fitur AI akan dinonaktifkan.")
 
-def extract_data_from_image(image_path: str):
+# --- FUNGSI DIPERBARUI ---
+def extract_data_from_images(image_paths: list[str]):
     """
-    Mengirim gambar ke Gemini API dan meminta ekstraksi data
-    dalam format JSON.
+    Mengirim BEBERAPA gambar (KTP & KK) ke Gemini API dan meminta
+    ekstraksi data yang DIGABUNGKAN dalam format JSON.
     """
     
-    # --- Pemeriksaan BARU ---
-    # Cek apakah init_api() sudah berhasil dipanggil
     if not api_is_configured or model is None:
         return False, "Gemini API belum dikonfigurasi.\n\nSilakan masukkan API Key Anda melalui menu 'File' > 'Konfigurasi API Key'."
 
-    # --- Logika yang ada (sedikit diubah) ---
     try:
-        print(f"Memproses gambar: {image_path}...")
-        img = Image.open(image_path)
-        
-        prompt_parts = [
-            img,
-            "\n\nAnalisis gambar (yang mungkin berupa KTP atau Kartu Keluarga Indonesia) dan ekstrak data berikut.\n"
+        # 1. Muat semua gambar yang dipilih
+        loaded_images = []
+        for path in image_paths:
+            print(f"Memuat gambar: {path}...")
+            img = Image.open(path)
+            loaded_images.append(img)
+            
+        if not loaded_images:
+            return False, "Tidak ada gambar yang dipilih."
+
+        # 2. Buat Prompt Multi-Gambar yang Cerdas
+        prompt_text = (
+            "\n\nAnalisis gambar-gambar berikut (yang kemungkinan adalah KTP dan Kartu Keluarga Indonesia).\n"
+            "Tugas Anda adalah MENGGABUNGKAN data dari semua gambar untuk mengisi SATU objek JSON.\n\n"
+            "ATURAN PRIORITAS:\n"
+            "1. Gunakan KTP sebagai sumber utama (prioritas 1) untuk: 'nama', 'nik', 'tempat_lahir', 'tanggal_lahir', 'alamat'.\n"
+            "2. Gunakan Kartu Keluarga (KK) sebagai sumber utama (prioritas 1) untuk: 'no_kk' dan 'nik_kk' (NIK Kepala Keluarga).\n"
+            "3. Jika data di KTP tidak jelas (misal 'alamat' terpotong), Anda boleh menggunakan data dari KK sebagai cadangan (prioritas 2).\n\n"
             "Kembalikan HANYA string JSON yang valid.\n"
             "Kunci JSON yang harus digunakan (gunakan string kosong \"\" jika data tidak ditemukan):\n"
-            "- 'nama' (Nama Lengkap)\n"
-            "- 'nik' (NIK)\n"
-            "- 'nik_kk' (Jika ini KK, ambil NIK Kepala Keluarga)\n"
-            "- 'no_kk' (Nomor Kartu Keluarga)\n"
-            "- 'tempat_lahir' (Tempat Lahir)\n"
-            "- 'tanggal_lahir' (Tanggal Lahir, format YYYY-MM-DD)\n"
-            "- 'alamat' (Alamat lengkap)\n"
+            "- 'nama' (Nama Lengkap, prioritas KTP)\n"
+            "- 'nik' (NIK, prioritas KTP)\n"
+            "- 'nik_kk' (NIK Kepala Keluarga, prioritas KK)\n"
+            "- 'no_kk' (Nomor Kartu Keluarga, prioritas KK)\n"
+            "- 'tempat_lahir' (Tempat Lahir, prioritas KTP)\n"
+            "- 'tanggal_lahir' (Tanggal Lahir, format YYYY-MM-DD, prioritas KTP)\n"
+            "- 'alamat' (Alamat lengkap, prioritas KTP)\n"
             "\nContoh JSON: {\"nama\": \"BUDI SANTOSO\", \"nik\": \"3170123456780001\", ...}\n"
             "JSON:\n"
-        ]
+        )
+        
+        # 3. Gabungkan gambar dan teks prompt
+        # [gambar1, gambar2, ..., teks_prompt]
+        prompt_parts = loaded_images + [prompt_text]
 
-        # Panggil API
+        # 4. Panggil API
         response = model.generate_content(prompt_parts)
         
         raw_text = response.text.strip().replace("```json", "").replace("```", "")
-        print(f"Respon mentah API: {raw_text}")
+        print(f"Respon mentah API (multi-gambar): {raw_text}")
         
         data_dict = json.loads(raw_text)
         

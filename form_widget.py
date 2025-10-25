@@ -20,45 +20,37 @@ from PyQt6.QtGui import QRegularExpressionValidator, QCursor
 # --- IMPOR KUSTOM ---
 import db_manager
 from config import BASE_DOC_FOLDER
-import gemini_parser # Impor modul AI baru
+import gemini_parser 
 
-# Ubah induk kelas dari QWidget menjadi QScrollArea
 class FormWidget(QScrollArea):
     data_saved = pyqtSignal()
 
     def __init__(self):
         super().__init__()
         
-        # Buat widget konten internal
         self.content_widget = QWidget()
         
-        # Konfigurasi QScrollArea (yaitu 'self')
         self.setWidgetResizable(True)
         self.setWidget(self.content_widget)
         self.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         self.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
 
-        # Inisialisasi variabel state
         self.current_edit_id = None
         self.current_doc_folder = None
         self.files_to_add = set()
         self.files_to_remove = set()
         
-        # Panggil init_ui
         self.init_ui()
 
     def init_ui(self):
         """Menginisialisasi User Interface (UI) untuk form."""
         
-        # Terapkan layout utama ke 'self.content_widget'
         main_layout = QVBoxLayout(self.content_widget)
 
-        # --- TOMBOL BARU UNTUK AI ---
         self.ai_fill_btn = QPushButton("🤖 Isi Otomatis dari KTP/KK...")
         self.ai_fill_btn.setStyleSheet("background-color: #0275d8; color: white; padding: 8px; border-radius: 4px;")
         self.ai_fill_btn.clicked.connect(self.on_ai_fill)
-        main_layout.addWidget(self.ai_fill_btn) # Tambahkan di bagian paling atas
-        # -----------------------------
+        main_layout.addWidget(self.ai_fill_btn)
 
         nik_validator = QRegularExpressionValidator(QRegularExpression(r'\d{16}'))
 
@@ -158,42 +150,43 @@ class FormWidget(QScrollArea):
         main_layout.addWidget(group_dokumen)
         main_layout.addLayout(layout_tombol)
 
-    # --- FUNGSI BARU UNTUK AI ---
+    # --- FUNGSI AI DIPERBARUI ---
     
     def on_ai_fill(self):
         """Dipanggil saat tombol 'Isi Otomatis' diklik."""
-        file_path, _ = QFileDialog.getOpenFileName(
+        
+        # 1. UBAH KE getOpenFileNames (plural)
+        files, _ = QFileDialog.getOpenFileNames(
             self,
-            "Pilih Gambar KTP atau Kartu Keluarga",
+            "Pilih Gambar KTP dan Kartu Keluarga (Bisa >1 file)",
             "", # Direktori awal
             "Images (*.png *.jpg *.jpeg *.webp)"
         )
         
-        if not file_path:
+        # 2. Cek jika 'files' (plural) ada
+        if not files:
             return # Pengguna membatalkan
 
-        # Ubah kursor menjadi 'Loading'
         self.setCursor(QCursor(Qt.CursorShape.WaitCursor))
-        QApplication.processEvents() # Paksa UI update
+        QApplication.processEvents() 
 
-        # Panggil parser AI
-        success, result = gemini_parser.extract_data_from_image(file_path)
+        # 3. Panggil fungsi parser yang baru
+        success, result = gemini_parser.extract_data_from_images(files)
         
-        # Kembalikan kursor
         self.unsetCursor()
 
         if success:
-            QMessageBox.information(self, "Sukses", "Data berhasil diekstrak! Harap periksa kembali isiannya.")
+            QMessageBox.information(self, "Sukses", "Data berhasil digabungkan! Harap periksa kembali isiannya.")
             self.populate_form_with_ai_data(result)
         else:
             QMessageBox.critical(self, "Error AI", f"Gagal memproses gambar: {result}")
 
+    # --- FUNGSI INI TIDAK BERUBAH ---
     def populate_form_with_ai_data(self, data: dict):
         """Mengisi field form dari data dictionary hasil AI."""
         
         print(f"Mengisi form dengan data: {data}")
         
-        # Cek jika kunci ada sebelum mengisinya
         if data.get('nama'):
             self.nama_input.setText(data.get('nama'))
         if data.get('nik'):
@@ -207,31 +200,26 @@ class FormWidget(QScrollArea):
         if data.get('alamat'):
             self.alamat_input.setPlainText(data.get('alamat'))
             
-        # Mengisi tanggal lahir (agak rumit)
         if data.get('tanggal_lahir'):
-            # AI diminta format YYYY-MM-DD
             tgl = QDate.fromString(data.get('tanggal_lahir'), "yyyy-MM-dd")
             if tgl.isValid():
                 self.tanggal_lahir_input.setDate(tgl)
             else:
-                # Coba format lain jika AI gagal, misal DD-MM-YYYY
                 tgl = QDate.fromString(data.get('tanggal_lahir'), "dd-MM-yyyy")
                 if tgl.isValid():
                     self.tanggal_lahir_input.setDate(tgl)
                 else:
                     print(f"Format tanggal dari AI tidak valid: {data.get('tanggal_lahir')}")
 
-    # --- FUNGSI DOKUMEN (LAMA) ---
+    # --- Sisa file (on_add_files, simpan_data, dll) TIDAK BERUBAH ---
 
     def on_add_files(self):
-        """Buka dialog untuk memilih satu atau beberapa file."""
         files, _ = QFileDialog.getOpenFileNames(
             self,
             "Pilih Dokumen untuk Ditambahkan",
-            "", # Mulai dari direktori terakhir
+            "",
             "Semua File (*.*);;PDF (*.pdf);;Images (*.jpg *.png)"
         )
-        
         if files:
             for file_path in files:
                 self.files_to_add.add(file_path)
@@ -239,12 +227,10 @@ class FormWidget(QScrollArea):
                 self.file_list_widget.addItem(item)
     
     def on_remove_file(self):
-        """Menghapus file yang dipilih dari list."""
         selected_items = self.file_list_widget.selectedItems()
         if not selected_items:
             QMessageBox.warning(self, "Peringatan", "Pilih file yang ingin dihapus.")
             return
-
         for item in selected_items:
             item_text = item.text()
             if item_text.startswith("[BARU] "):
@@ -253,19 +239,17 @@ class FormWidget(QScrollArea):
             else:
                 filename = item_text
                 self.files_to_remove.add(filename)
-            
             self.file_list_widget.takeItem(self.file_list_widget.row(item))
 
     def on_open_folder(self):
-        """Membuka folder dokumen orang ini di file explorer."""
         if self.current_doc_folder and self.current_doc_folder.exists():
             path = str(self.current_doc_folder.resolve())
             try:
                 if platform.system() == "Windows":
                     os.startfile(path)
-                elif platform.system() == "Darwin": # macOS
+                elif platform.system() == "Darwin":
                     subprocess.Popen(["open", path])
-                else: # Linux
+                else:
                     subprocess.Popen(["xdg-open", path])
             except Exception as e:
                 QMessageBox.critical(self, "Error", f"Tidak bisa membuka folder: {e}")
@@ -273,24 +257,18 @@ class FormWidget(QScrollArea):
             QMessageBox.information(self, "Info", "Folder belum ada. Simpan data terlebih dahulu.")
 
     def _populate_file_list(self):
-        """Helper untuk mengisi list file saat mode edit."""
         self.file_list_widget.clear()
         if self.current_doc_folder and self.current_doc_folder.exists():
             for file_path in self.current_doc_folder.iterdir():
                 if file_path.is_file():
                     self.file_list_widget.addItem(file_path.name)
         
-    # --- FUNGSI CORE (LAMA) ---
-        
     def load_data_for_edit(self, user_id):
-        """Ambil data dari DB dan isi form untuk mode edit."""
         self.bersihkan_form()
-        
         success, data_row = db_manager.get_data_by_id(user_id)
         if not success:
             QMessageBox.critical(self, "Error", f"Gagal memuat data: {data_row}")
             return
-
         self.nama_input.setText(data_row['nama'])
         self.status_input.setCurrentText(data_row['status'])
         self.keterangan_input.setText(data_row['keterangan'])
@@ -306,17 +284,12 @@ class FormWidget(QScrollArea):
         self.email_input.setText(data_row['email'])
         self.password_input.setText(data_row['password'])
         self.no_hp_input.setText(data_row['no_hp'])
-
         self.current_edit_id = user_id
         self.simpan_btn.setText("Update Data")
-        
         self.current_doc_folder = Path(BASE_DOC_FOLDER) / data_row['nik']
         self._populate_file_list()
 
-
     def simpan_data(self):
-        """Kumpulkan data, termasuk data file, lalu panggil db_manager."""
-        
         nik = self.nik_input.text()
         if not self.nama_input.text() or not nik:
             QMessageBox.warning(self, "Input Error", "Nama dan NIK wajib diisi!")
@@ -324,7 +297,6 @@ class FormWidget(QScrollArea):
         if not self.nik_input.hasAcceptableInput():
             QMessageBox.warning(self, "Input Error", "Format NIK tidak valid (harus 16 digit angka).")
             return
-        
         data = {
             "nama": self.nama_input.text(),
             "status": self.status_input.currentText(),
@@ -343,13 +315,11 @@ class FormWidget(QScrollArea):
             "files_to_add": self.files_to_add,
             "files_to_remove": self.files_to_remove
         }
-        
         if self.current_edit_id is None:
             success, message = db_manager.save_data(data)
         else:
             data['old_nik'] = self.current_doc_folder.name if self.current_doc_folder else nik
             success, message = db_manager.update_data(self.current_edit_id, data)
-        
         if success:
             QMessageBox.information(self, "Sukses", message)
             self.bersihkan_form()
@@ -358,7 +328,6 @@ class FormWidget(QScrollArea):
             QMessageBox.critical(self, "Database Error", message)
 
     def bersihkan_form(self):
-        """Mengosongkan semua bidang input dan reset mode."""
         self.nama_input.clear()
         self.status_input.setCurrentIndex(0)
         self.keterangan_input.clear()
@@ -373,11 +342,9 @@ class FormWidget(QScrollArea):
         self.email_input.clear()
         self.password_input.clear()
         self.no_hp_input.clear()
-        
         self.file_list_widget.clear()
         self.files_to_add.clear()
         self.files_to_remove.clear()
         self.current_doc_folder = None
-        
         self.current_edit_id = None
         self.simpan_btn.setText("Simpan Data")

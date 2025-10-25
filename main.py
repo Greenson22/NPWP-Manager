@@ -16,10 +16,8 @@ from view_widget import ViewWidget
 from detail_widget import DetailWidget
 import gemini_parser
 
-# --- INI ADALAH PERUBAHANNYA ---
-# Tentukan nama file .env
+# Tentukan nama file env
 ENV_FILE_PATH = ".myenv"
-# ---------------------------------
 
 class MainWindow(QMainWindow):
     """Jendela utama aplikasi."""
@@ -36,7 +34,6 @@ class MainWindow(QMainWindow):
 
     def load_and_init_api(self):
         """Memuat API Key dari file .env dan menginisialisasi Gemini."""
-        # Memuat dari file .myenv
         load_dotenv(dotenv_path=ENV_FILE_PATH) 
         api_key = os.environ.get("GOOGLE_API_KEY")
         gemini_parser.init_api(api_key)
@@ -82,10 +79,13 @@ class MainWindow(QMainWindow):
         
         if ok and new_key and new_key != current_key:
             try:
-                # Menyimpan ke file .myenv
                 set_key(dotenv_path=ENV_FILE_PATH, key_to_set="GOOGLE_API_KEY", value_to_set=new_key) 
                 os.environ["GOOGLE_API_KEY"] = new_key
                 gemini_parser.init_api(new_key)
+                
+                if hasattr(self, 'form_page'):
+                    self.form_page.enable_ai_button()
+
                 QMessageBox.information(self, "Sukses", "API Key berhasil disimpan dan diaktifkan.")
             except Exception as e:
                 QMessageBox.critical(self, "Error", f"Gagal menyimpan API Key: {e}")
@@ -151,11 +151,8 @@ class MainWindow(QMainWindow):
         nik = data['nik']
         
         reply = QMessageBox.question(
-            self, 
-            "Konfirmasi Hapus", 
-            f"Apakah Anda yakin ingin menghapus data:\n\n"
-            f"Nama: {nama}\n"
-            f"NIK: {nik}\n\n"
+            self, "Konfirmasi Hapus", 
+            f"Apakah Anda yakin ingin menghapus data:\n\nNama: {nama}\nNIK: {nik}\n\n"
             f"Tindakan ini juga akan MENGHAPUS SELURUH FOLDER dokumen terkait secara permanen.",
             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
             QMessageBox.StandardButton.No
@@ -173,7 +170,7 @@ class MainWindow(QMainWindow):
 if __name__ == '__main__':
     db_manager.init_db() 
     
-    app = QApplication(sys.argv)
+    app = QApplication(sys.argv) # <-- INI PERBAIKANNYA
     
     app.setStyle("Fusion") 
     

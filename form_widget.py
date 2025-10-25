@@ -14,7 +14,9 @@ from PyQt6.QtWidgets import (
     QListWidget, QListWidgetItem, QFileDialog, 
     QScrollArea, QApplication
 )
-from PyQt6.QtCore import QDate, QRegularExpression, pyqtSignal, Qt
+# --- IMPOR DIPERBARUI ---
+from PyQt6.QtCore import QDate, QRegularExpression, pyqtSignal, Qt, QObject, QThread, pyqtSlot
+
 from PyQt6.QtGui import QRegularExpressionValidator, QCursor
 
 # --- IMPOR KUSTOM ---
@@ -22,6 +24,38 @@ import db_manager
 from config import BASE_DOC_FOLDER
 import gemini_parser 
 
+# --- KELAS WORKER BARU ---
+class GeminiWorker(QObject):
+    """
+    Worker thread untuk menjalankan panggilan API Gemini
+    tanpa membekukan UI.
+    """
+    finished = pyqtSignal(bool, object) 
+    progress = pyqtSignal(str)
+
+    def __init__(self, image_paths: list[str]):
+        super().__init__()
+        self.image_paths = image_paths
+
+    def run(self):
+        """Tugas yang akan dijalankan di thread terpisah."""
+        try:
+            self.progress.emit("Memvalidasi API...")
+            if not gemini_parser.api_is_configured:
+                raise Exception("API Key belum dikonfigurasi.")
+            
+            self.progress.emit("Memuat gambar...")
+            self.progress.emit(f"Mengirim {len(self.image_paths)} gambar ke Google Gemini (1.5 Pro)... Ini mungkin memakan waktu beberapa detik...")
+            
+            success, result = gemini_parser.extract_data_from_images(self.image_paths)
+            
+            self.finished.emit(success, result)
+            
+        except Exception as e:
+            self.finished.emit(False, f"Terjadi kesalahan di thread: {e}")
+
+
+# --- KELAS FORM WIDGET (DIPERBARUI) ---
 class FormWidget(QScrollArea):
     data_saved = pyqtSignal()
 
@@ -40,6 +74,9 @@ class FormWidget(QScrollArea):
         self.files_to_add = set()
         self.files_to_remove = set()
         
+        self.thread = None
+        self.worker = None
+        
         self.init_ui()
 
     def init_ui(self):
@@ -51,6 +88,21 @@ class FormWidget(QScrollArea):
         self.ai_fill_btn.setStyleSheet("background-color: #0275d8; color: white; padding: 8px; border-radius: 4px;")
         self.ai_fill_btn.clicked.connect(self.on_ai_fill)
         main_layout.addWidget(self.ai_fill_btn)
+        
+        group_log_ai = QGroupBox("Log Proses AI")
+        layout_log_ai = QVBoxLayout()
+        self.ai_log_output = QTextEdit()
+        self.ai_log_output.setReadOnly(True)
+        self.ai_log_output.setFixedHeight(100) 
+        self.ai_log_output.append("Selamat datang! Silakan klik tombol 'Isi Otomatis' di atas.")
+        layout_log_ai.addWidget(self.ai_log_output)
+        group_log_ai.setLayout(layout_log_ai)
+        main_layout.addWidget(group_log_ai) 
+        
+        if not gemini_parser.api_is_configured:
+            self.disable_ai_button(
+                "API Key Belum Dikonfigurasi (Cek Menu File)"
+            )
 
         nik_validator = QRegularExpressionValidator(QRegularExpression(r'\d{16}'))
 
@@ -150,76 +202,102 @@ class FormWidget(QScrollArea):
         main_layout.addWidget(group_dokumen)
         main_layout.addLayout(layout_tombol)
 
-    # --- FUNGSI AI DIPERBARUI ---
+    # --- FUNGSI AI DIPERBARUI (THREADING) ---
     
+    # --- DECORATOR pyqtSlot SEKARANG DIKENALI ---
+    @pyqtSlot(str)
+    def update_ai_log(self, message: str):
+        """Slot untuk menerima pesan dari worker dan menampilkannya."""
+        self.ai_log_output.append(f"LOG: {message}")
+
     def on_ai_fill(self):
-        """Dipanggil saat tombol 'Isi Otomatis' diklik."""
+        """1. Mempersiapkan dan memulai worker thread."""
         
-        # 1. UBAH KE getOpenFileNames (plural)
+        if self.thread is not None and self.thread.isRunning():
+            QMessageBox.warning(self, "Info", "Proses AI lain sedang berjalan. Harap tunggu.")
+            return
+
         files, _ = QFileDialog.getOpenFileNames(
             self,
             "Pilih Gambar KTP dan Kartu Keluarga (Bisa >1 file)",
-            "", # Direktori awal
+            "", 
             "Images (*.png *.jpg *.jpeg *.webp)"
         )
         
-        # 2. Cek jika 'files' (plural) ada
         if not files:
-            return # Pengguna membatalkan
+            return 
 
+        self.ai_log_output.clear()
+        self.update_ai_log("Mempersiapkan thread...")
+        self.ai_fill_btn.setEnabled(False)
+        self.ai_fill_btn.setText("🤖 Memproses...")
         self.setCursor(QCursor(Qt.CursorShape.WaitCursor))
-        QApplication.processEvents() 
 
-        # 3. Panggil fungsi parser yang baru
-        success, result = gemini_parser.extract_data_from_images(files)
+        self.thread = QThread()
+        self.worker = GeminiWorker(files)
+        self.worker.moveToThread(self.thread)
+
+        self.thread.started.connect(self.worker.run) 
+        self.worker.finished.connect(self.on_ai_finished) 
+        self.worker.progress.connect(self.update_ai_log)
         
-        self.unsetCursor()
+        self.worker.finished.connect(self.thread.quit)
+        self.worker.finished.connect(self.worker.deleteLater)
+        self.thread.finished.connect(self.thread.deleteLater)
+        self.thread.finished.connect(lambda: print("Thread AI Selesai dan dibersihkan."))
 
+        self.thread.start()
+
+    @pyqtSlot(bool, object)
+    def on_ai_finished(self, success: bool, result: object):
+        """2. Dipanggil saat worker thread selesai."""
+        
+        self.enable_ai_button() 
+        self.unsetCursor()
+        
         if success:
+            self.update_ai_log("Data berhasil diekstrak dari API.")
             QMessageBox.information(self, "Sukses", "Data berhasil digabungkan! Harap periksa kembali isiannya.")
             self.populate_form_with_ai_data(result)
         else:
-            QMessageBox.critical(self, "Error AI", f"Gagal memproses gambar: {result}")
+            self.update_ai_log(f"ERROR: {result}")
+            QMessageBox.critical(self, "Error AI", f"Gagal memproses gambar:\n{result}")
 
-    # --- FUNGSI INI TIDAK BERUBAH ---
+    # --- FUNGSI HELPER BARU UNTUK UI ---
+    
+    def enable_ai_button(self):
+        """Mengaktifkan tombol AI."""
+        self.ai_fill_btn.setEnabled(True)
+        self.ai_fill_btn.setText("🤖 Isi Otomatis dari KTP/KK...")
+        self.ai_fill_btn.setStyleSheet("background-color: #0275d8; color: white; padding: 8px; border-radius: 4px;")
+        
+    def disable_ai_button(self, text: str):
+        """Menonaktifkan tombol AI dengan pesan."""
+        self.ai_fill_btn.setEnabled(False)
+        self.ai_fill_btn.setText(f"🤖 {text}")
+        self.ai_fill_btn.setStyleSheet("background-color: #888; color: #ccc; padding: 8px; border-radius: 4px;")
+
+    # --- FUNGSI LAIN (TIDAK BERUBAH) ---
+
     def populate_form_with_ai_data(self, data: dict):
-        """Mengisi field form dari data dictionary hasil AI."""
-        
         print(f"Mengisi form dengan data: {data}")
-        
-        if data.get('nama'):
-            self.nama_input.setText(data.get('nama'))
-        if data.get('nik'):
-            self.nik_input.setText(data.get('nik'))
-        if data.get('nik_kk'):
-            self.nik_kk_input.setText(data.get('nik_kk'))
-        if data.get('no_kk'):
-            self.no_kk_input.setText(data.get('no_kk'))
-        if data.get('tempat_lahir'):
-            self.tempat_lahir_input.setText(data.get('tempat_lahir'))
-        if data.get('alamat'):
-            self.alamat_input.setPlainText(data.get('alamat'))
-            
+        if data.get('nama'): self.nama_input.setText(data.get('nama'))
+        if data.get('nik'): self.nik_input.setText(data.get('nik'))
+        if data.get('nik_kk'): self.nik_kk_input.setText(data.get('nik_kk'))
+        if data.get('no_kk'): self.no_kk_input.setText(data.get('no_kk'))
+        if data.get('tempat_lahir'): self.tempat_lahir_input.setText(data.get('tempat_lahir'))
+        if data.get('alamat'): self.alamat_input.setPlainText(data.get('alamat'))
         if data.get('tanggal_lahir'):
             tgl = QDate.fromString(data.get('tanggal_lahir'), "yyyy-MM-dd")
+            if not tgl.isValid():
+                tgl = QDate.fromString(data.get('tanggal_lahir'), "dd-MM-yyyy")
             if tgl.isValid():
                 self.tanggal_lahir_input.setDate(tgl)
             else:
-                tgl = QDate.fromString(data.get('tanggal_lahir'), "dd-MM-yyyy")
-                if tgl.isValid():
-                    self.tanggal_lahir_input.setDate(tgl)
-                else:
-                    print(f"Format tanggal dari AI tidak valid: {data.get('tanggal_lahir')}")
-
-    # --- Sisa file (on_add_files, simpan_data, dll) TIDAK BERUBAH ---
+                print(f"Format tanggal dari AI tidak valid: {data.get('tanggal_lahir')}")
 
     def on_add_files(self):
-        files, _ = QFileDialog.getOpenFileNames(
-            self,
-            "Pilih Dokumen untuk Ditambahkan",
-            "",
-            "Semua File (*.*);;PDF (*.pdf);;Images (*.jpg *.png)"
-        )
+        files, _ = QFileDialog.getOpenFileNames(self, "Pilih Dokumen", "", "Semua File (*.*)")
         if files:
             for file_path in files:
                 self.files_to_add.add(file_path)
@@ -228,40 +306,32 @@ class FormWidget(QScrollArea):
     
     def on_remove_file(self):
         selected_items = self.file_list_widget.selectedItems()
-        if not selected_items:
-            QMessageBox.warning(self, "Peringatan", "Pilih file yang ingin dihapus.")
-            return
+        if not selected_items: return
         for item in selected_items:
             item_text = item.text()
             if item_text.startswith("[BARU] "):
-                source_path = item_text.replace("[BARU] ", "")
-                self.files_to_add.discard(source_path)
+                self.files_to_add.discard(item_text.replace("[BARU] ", ""))
             else:
-                filename = item_text
-                self.files_to_remove.add(filename)
+                self.files_to_remove.add(item_text)
             self.file_list_widget.takeItem(self.file_list_widget.row(item))
 
     def on_open_folder(self):
         if self.current_doc_folder and self.current_doc_folder.exists():
             path = str(self.current_doc_folder.resolve())
             try:
-                if platform.system() == "Windows":
-                    os.startfile(path)
-                elif platform.system() == "Darwin":
-                    subprocess.Popen(["open", path])
-                else:
-                    subprocess.Popen(["xdg-open", path])
+                if platform.system() == "Windows": os.startfile(path)
+                elif platform.system() == "Darwin": subprocess.Popen(["open", path])
+                else: subprocess.Popen(["xdg-open", path])
             except Exception as e:
                 QMessageBox.critical(self, "Error", f"Tidak bisa membuka folder: {e}")
         else:
-            QMessageBox.information(self, "Info", "Folder belum ada. Simpan data terlebih dahulu.")
+            QMessageBox.information(self, "Info", "Folder belum ada. Simpan data.")
 
     def _populate_file_list(self):
         self.file_list_widget.clear()
         if self.current_doc_folder and self.current_doc_folder.exists():
             for file_path in self.current_doc_folder.iterdir():
-                if file_path.is_file():
-                    self.file_list_widget.addItem(file_path.name)
+                if file_path.is_file(): self.file_list_widget.addItem(file_path.name)
         
     def load_data_for_edit(self, user_id):
         self.bersihkan_form()
@@ -295,25 +365,21 @@ class FormWidget(QScrollArea):
             QMessageBox.warning(self, "Input Error", "Nama dan NIK wajib diisi!")
             return
         if not self.nik_input.hasAcceptableInput():
-            QMessageBox.warning(self, "Input Error", "Format NIK tidak valid (harus 16 digit angka).")
+            QMessageBox.warning(self, "Input Error", "Format NIK tidak valid.")
             return
         data = {
             "nama": self.nama_input.text(),
             "status": self.status_input.currentText(),
             "keterangan": self.keterangan_input.text(),
-            "nik": nik,
-            "nik_kk": self.nik_kk_input.text(),
-            "no_kk": self.no_kk_input.text(),
+            "nik": nik, "nik_kk": self.nik_kk_input.text(), "no_kk": self.no_kk_input.text(),
             "tempat_lahir": self.tempat_lahir_input.text(),
             "tanggal_lahir": self.tanggal_lahir_input.date().toString("yyyy-MM-dd"),
             "alamat": self.alamat_input.toPlainText(),
             "pekerjaan": self.pekerjaan_input.text(),
             "nama_ibu": self.nama_ibu_input.text(),
-            "email": self.email_input.text(),
-            "password": self.password_input.text(), 
+            "email": self.email_input.text(), "password": self.password_input.text(), 
             "no_hp": self.no_hp_input.text(),
-            "files_to_add": self.files_to_add,
-            "files_to_remove": self.files_to_remove
+            "files_to_add": self.files_to_add, "files_to_remove": self.files_to_remove
         }
         if self.current_edit_id is None:
             success, message = db_manager.save_data(data)
@@ -348,3 +414,6 @@ class FormWidget(QScrollArea):
         self.current_doc_folder = None
         self.current_edit_id = None
         self.simpan_btn.setText("Simpan Data")
+        self.ai_log_output.setText("Silakan klik tombol 'Isi Otomatis' di atas.")
+        if gemini_parser.api_is_configured:
+            self.enable_ai_button()

@@ -22,6 +22,7 @@ pyinstaller --onefile \
             --windowed \
             --name=AplikasiNPWP \
             --add-data=".myenv:." \
+            --icon="assets/icon.png" \
             main.py
 
 # 4. Cek apakah build berhasil

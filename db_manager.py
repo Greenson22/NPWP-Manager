@@ -97,17 +97,10 @@ def update_data(id_to_update, data: dict):
                 # Jika gagal rename, tetap gunakan path baru untuk file baru
                 folder_path = new_folder_path
         else:
-            # Jika NIK tidak berubah, folder_path sudah benar.
-            # Jika NIK berubah TAPI folder lama tidak ada,
-            # kita harus atur folder_path ke NIK yang baru.
             folder_path = new_folder_path
             
         
-        # --- PERBAIKAN BUG ---
-        # Pastikan folder tujuan (baik yang lama/baru) ada sebelum
-        # mencoba menyalin file ke dalamnya.
         folder_path.mkdir(exist_ok=True)
-        # ---------------------
 
         # 2. Update Database
         conn = sqlite3.connect(DB_NAME)
@@ -124,14 +117,12 @@ def update_data(id_to_update, data: dict):
         conn.close()
 
         # 3. Kelola File
-        # Hapus file
         files_to_remove = data.get('files_to_remove', set())
         for filename in files_to_remove:
             file_to_del = folder_path / filename
             if file_to_del.exists():
                 os.remove(file_to_del)
                 
-        # Tambah file baru
         files_to_add = data.get('files_to_add', set())
         for source_path_str in files_to_add:
             source_path = Path(source_path_str)
@@ -178,7 +169,6 @@ def get_data_by_id(id_to_fetch):
         conn = sqlite3.connect(DB_NAME)
         conn.row_factory = sqlite3.Row
         cursor = conn.cursor()
-        # Ambil *semua* field (termasuk password) untuk form edit
         cursor.execute(f"SELECT * FROM {NAMA_TABEL} WHERE id = ?", (id_to_fetch,))
         data = cursor.fetchone()
         conn.close()
@@ -191,17 +181,31 @@ def get_data_by_id(id_to_fetch):
     except Exception as e:
         return False, f"Error saat mengambil data by ID: {e}"
 
-def load_data():
-    """Mengambil semua data dari database untuk ditampilkan di tabel."""
+# --- FUNGSI DIPERBARUI ---
+def load_data(search_term=""):
+    """
+    Mengambil semua data dari database untuk ditampilkan di tabel.
+    Jika search_term diberikan, filter berdasarkan NAMA atau NIK.
+    """
     try:
         conn = sqlite3.connect(DB_NAME)
-        # Menggunakan Row Factory agar bisa memanggil data berdasarkan nama kolom
         conn.row_factory = sqlite3.Row 
         cursor = conn.cursor()
         
-        query = f"SELECT {', '.join(KOLOM_DB)} FROM {NAMA_TABEL} ORDER BY id DESC"
-        cursor.execute(query)
-        data = cursor.fetchall() # Ini akan menjadi list dari objek sqlite3.Row
+        # Siapkan parameter dan kueri dasar
+        params = []
+        query = f"SELECT {', '.join(KOLOM_DB)} FROM {NAMA_TABEL}"
+        
+        # Tambahkan filter WHERE jika ada search_term
+        if search_term:
+            query += " WHERE nama LIKE ? OR nik LIKE ?"
+            params.append(f"%{search_term}%")
+            params.append(f"%{search_term}%")
+            
+        query += " ORDER BY id DESC"
+        
+        cursor.execute(query, params) # Gunakan params untuk kueri aman
+        data = cursor.fetchall() 
         conn.close()
         
         # Membuat header yang 'cantik'

@@ -4,7 +4,7 @@
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QPushButton, QMessageBox, 
     QTableWidget, QTableWidgetItem, QHeaderView, QMenu,
-    QHBoxLayout
+    QHBoxLayout, QLineEdit # <-- Tambahkan QLineEdit
 )
 from PyQt6.QtCore import pyqtSignal, Qt
 from PyQt6.QtGui import QAction
@@ -26,13 +26,26 @@ class ViewWidget(QWidget):
     def init_ui(self):
         layout = QVBoxLayout(self)
         
+        # --- Layout Tombol & Pencarian (DIPERBARUI) ---
+        
+        # 1. Buat widget
+        self.search_input = QLineEdit()
+        self.search_input.setPlaceholderText("Cari berdasarkan Nama atau NIK...")
+        
         self.refresh_btn = QPushButton("Refresh Data")
         self.refresh_btn.setStyleSheet("background-color: #008CBA; color: white; padding: 8px; border-radius: 4px;")
-        self.refresh_btn.clicked.connect(self.load_data)
         
+        # 2. Atur layout
         button_layout = QHBoxLayout()
-        button_layout.addWidget(self.refresh_btn)
+        button_layout.addWidget(self.search_input) # Tambahkan kotak pencarian
+        button_layout.addWidget(self.refresh_btn) # Tambahkan tombol refresh
         button_layout.addStretch()
+
+        # 3. Hubungkan sinyal
+        self.refresh_btn.clicked.connect(self.clear_search_and_refresh)
+        self.search_input.textChanged.connect(self.load_data)
+        
+        # --- Akhir Perubahan Layout ---
 
         self.table_widget = QTableWidget()
         self.table_widget.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
@@ -56,8 +69,6 @@ class ViewWidget(QWidget):
         row = item.row()
         
         try:
-            # Fungsi ini TETAP AMAN karena kolom 0 (ID) masih ada, 
-            # hanya disembunyikan
             user_id_item = self.table_widget.item(row, 0)
             user_id = int(user_id_item.text())
         except (AttributeError, ValueError, TypeError) as e:
@@ -85,11 +96,26 @@ class ViewWidget(QWidget):
         elif selected_action == delete_action:
             self.delete_requested.emit(user_id)
 
+    # --- FUNGSI BARU ---
+    def clear_search_and_refresh(self):
+        """Membersihkan kotak pencarian dan memuat ulang data."""
+        # Hentikan sinyal sementara agar clear() tidak memicu load_data
+        self.search_input.blockSignals(True)
+        self.search_input.clear()
+        self.search_input.blockSignals(False)
+        
+        # Panggil load_data secara manual
+        self.load_data()
+
     # --- FUNGSI DIPERBARUI ---
     def load_data(self):
         """Mengambil data dari db_manager dan menampilkannya di tabel."""
         
-        success, data, headers = db_manager.load_data()
+        # Ambil teks pencarian dari input
+        search_term = self.search_input.text()
+        
+        # Kirim teks pencarian ke db_manager
+        success, data, headers = db_manager.load_data(search_term)
         
         if success:
             if not data:
@@ -107,24 +133,18 @@ class ViewWidget(QWidget):
                     item = QTableWidgetItem(str(col_value))
                     self.table_widget.setItem(row_idx, col_idx, item)
             
-            # --- BARIS KODE BARU DITAMBAHKAN DI SINI ---
-            # Sembunyikan kolom 'id' (yang ada di indeks 0)
             try:
-                # Kita tahu 'Id' adalah header pertama dari config.py
                 self.table_widget.setColumnHidden(0, True)
             except Exception as e:
                 print(f"Gagal menyembunyikan kolom ID: {e}")
-            # ---------------------------------------------
 
-            # Sesuaikan lebar kolom 'Alamat' dan 'Keterangan' agar lebih lebar
             try:
                 alamat_col = headers.index("Alamat")
                 self.table_widget.horizontalHeader().setSectionResizeMode(alamat_col, QHeaderView.ResizeMode.Stretch)
                 ket_col = headers.index("Keterangan")
                 self.table_widget.horizontalHeader().setSectionResizeMode(ket_col, QHeaderView.ResizeMode.Stretch)
             except ValueError:
-                pass # Jika kolom tidak ditemukan
+                pass 
 
         else:
-            # Jika gagal, 'data' berisi pesan error
             QMessageBox.critical(self, "Error", data)

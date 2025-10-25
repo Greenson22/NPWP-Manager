@@ -1,18 +1,25 @@
 # gemini_parser.py
 # Mengurus semua logika untuk memanggil Gemini API
-# VERSI 3.2 - Revert ke 'GenerativeModel' (V2.1) tapi tetap
-#             mendukung pemilihan model (V3.1).
+# VERSI 4.0 - Eksklusif menggunakan SDK baru (genai.Client)
 
-import google.generativeai as genai
-from google.generativeai.types import GenerationConfig
+try:
+    from google import genai
+    from google.genai.types import GenerationConfig
+except ImportError:
+    print("="*50)
+    print("ERROR: Library 'google-genai' tidak ditemukan.")
+    print("Silakan jalankan: pip install google-genai")
+    print("="*50)
+    # Hentikan program jika library inti tidak ada
+    raise
 
 from PIL import Image
 import json
 
 # --- Variabel Global ---
-model = None # Kita kembali menggunakan 'model'
+client = None
 api_is_configured = False
-current_model_name = "" # Variabel ini tetap ada
+current_model_name = "" 
 
 # Skema JSON (tidak berubah)
 JSON_SCHEMA = {
@@ -40,73 +47,70 @@ SYSTEM_INSTRUCTION = (
     "4. Jika data tidak ditemukan di gambar manapun, kembalikan string kosong \"\"."
 )
 
-# --- FUNGSI DIPERBARUI ---
+
 def init_api(api_key: str):
     """
-    Menginisialisasi Gemini API (SDK lama) dengan key.
+    Menginisialisasi Gemini API Client (SDK Baru) dengan key.
     """
-    global api_is_configured
+    global client, api_is_configured
     
     if api_key:
         try:
-            # Ini adalah syntax SDK yang Anda miliki
-            genai.configure(api_key=api_key)
+            # Gunakan API key untuk mengautentikasi client
+            # (Asumsi SDK baru menggunakan 'api_key' saat inisialisasi client
+            # atau mengambil dari os.environ yang diatur main.py)
+            genai.configure(api_key=api_key) 
+            client = genai.Client()
+            client.models.list() 
             api_is_configured = True
-            print("Gemini API (google.generativeai) berhasil dikonfigurasi.")
+            print("Gemini API (Client SDK) berhasil dikonfigurasi.")
         except Exception as e:
-            print(f"Konfigurasi Gemini gagal: {e}")
+            print(f"Konfigurasi Gemini (Client SDK) gagal: {e}")
             api_is_configured = False
     else:
         api_is_configured = False
         print("Gemini API Key tidak ditemukan. Fitur AI akan dinonaktifkan.")
 
-# --- FUNGSI DIPERBARUI ---
 def set_model(model_name: str):
     """
-    Dipanggil oleh main.py untuk membuat instance model.
+    Dipanggil oleh main.py untuk menyimpan nama model yang akan digunakan.
     """
-    global current_model_name, model
+    global current_model_name
     current_model_name = model_name
-    
-    if api_is_configured:
-        try:
-            # Buat instance model menggunakan syntax SDK lama
-            model = genai.GenerativeModel(
-                model_name=current_model_name,
-                system_instruction=SYSTEM_INSTRUCTION
-            )
-            print(f"Model Gemini diatur ke: {current_model_name}")
-        except Exception as e:
-            print(f"Gagal membuat instance model {current_model_name}: {e}")
-            model = None 
-    else:
-         print("API Key belum dikonfigurasi, 'set_model' ditunda.")
+    print(f"Model Gemini diatur ke: {current_model_name}")
 
 
-# --- FUNGSI DIPERBARUI ---
 def extract_data_from_images(image_paths: list[str]):
     """
-    Mengirim BEBERAPA gambar ke API menggunakan 'model.generate_content()'.
+    Mengirim BEBERAPA gambar ke API menggunakan 'client.models.generate_content()'.
     """
     
-    if not api_is_configured or model is None:
-        return False, "Gemini API belum dikonfigurasi atau model gagal dimuat.\n\nSilakan periksa API Key dan pilihan Model Anda."
+    if not api_is_configured or client is None:
+        return False, "Gemini API belum dikonfigurasi.\n\nSilakan masukkan API Key Anda melalui menu 'File' > 'Konfigurasi API Key'."
+
+    if not current_model_name:
+        return False, "Model Gemini belum dipilih. Silakan pilih model dari menu 'Pengaturan'."
 
     try:
         loaded_images = []
         for path in image_paths:
             print(f"Memuat gambar: {path}...")
-            img = Image.open(path)
-            loaded_images.append(img)
+            # Unggah file ke API untuk mendapatkan 'handle'
+            # Ini adalah cara yang lebih baik untuk SDK baru
+            uploaded_file = client.files.upload(
+                path=path,
+                display_name=os.path.basename(path)
+            )
+            loaded_images.append(uploaded_file)
             
         if not loaded_images:
             return False, "Tidak ada gambar yang dipilih."
 
+        # Buat prompt 'contents' menggunakan referensi file yang diunggah
         prompt_parts = loaded_images + [
-            "Tolong ekstrak data dari gambar-gambar ini sesuai dengan aturan dan skema JSON yang telah ditentukan."
+            "Tolong ekstrak data dari gambar-gambar ini (KTP dan KK) sesuai dengan aturan dan skema JSON yang telah ditentukan."
         ]
 
-        # Konfigurasi JSON Mode (Syntax SDK lama)
         generation_config = GenerationConfig(
             response_mime_type="application/json",
             response_schema=JSON_SCHEMA 
@@ -114,11 +118,19 @@ def extract_data_from_images(image_paths: list[str]):
         
         print(f"Memanggil API menggunakan model: {current_model_name}...")
         
-        # Panggil API menggunakan syntax SDK lama
-        response = model.generate_content(
-            prompt_parts,
+        response = client.models.generate_content(
+            model=current_model_name,
+            contents=prompt_parts,           
+            system_instruction=SYSTEM_INSTRUCTION, 
             generation_config=generation_config
         )
+        
+        # Hapus file setelah digunakan (opsional, tapi praktik yang baik)
+        for f in loaded_images:
+            try:
+                client.files.delete(f)
+            except Exception as e:
+                print(f"Gagal menghapus file sementara {f.name}: {e}")
         
         print(f"Respon JSON API: {response.text}")
         data_dict = json.loads(response.text)

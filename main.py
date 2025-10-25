@@ -18,7 +18,8 @@ import gemini_parser
 
 # Tentukan nama file env
 ENV_FILE_PATH = ".myenv"
-DEFAULT_MODEL = "gemini-1.5-flash-latest"
+# --- (BARU) Tentukan model default ---
+DEFAULT_MODEL = "gemini-2.5-flash"
 
 
 class MainWindow(QMainWindow):
@@ -42,7 +43,9 @@ class MainWindow(QMainWindow):
         api_key = os.environ.get("GOOGLE_API_KEY")
         model_name = os.environ.get("GEMINI_MODEL_NAME", DEFAULT_MODEL)
         
+        # Beri tahu parser untuk menginisialisasi (menggunakan API key)
         gemini_parser.init_api(api_key)
+        # Beri tahu parser model mana yang harus digunakan
         gemini_parser.set_model(model_name) 
 
     def setup_menu(self):
@@ -99,10 +102,11 @@ class MainWindow(QMainWindow):
     def select_gemini_model(self):
         """Menampilkan dialog dropdown untuk memilih model AI."""
         
+        # --- (DIPERBARUI) Daftar model baru berdasarkan info Anda ---
         models = [
-            "gemini-1.5-pro-latest",   # Model Paling Canggih
-            "gemini-1.5-flash-latest", # Model Cepat (default kita)
-            # "gemini-2.5-flash"      # Kita nonaktifkan dulu karena SDK tidak kompatibel
+            "gemini-2.5-pro",   
+            "gemini-2.5-flash", 
+            "gemini-2.5-flash-lite"
         ]
         
         current_model = os.environ.get("GEMINI_MODEL_NAME", DEFAULT_MODEL)
@@ -110,15 +114,19 @@ class MainWindow(QMainWindow):
         try:
             current_index = models.index(current_model)
         except ValueError:
+            # Jika model di .myenv tidak ada di daftar, 
+            # tambahkan ke daftar agar bisa dipilih
+            if current_model not in models:
+                models.insert(0, current_model) 
             current_index = 0
         
         new_model, ok = QInputDialog.getItem(
             self,
             "Pilih Model Gemini",
-            "Pilih model AI yang akan digunakan (Pro lebih akurat, Flash lebih cepat):",
+            "Pilih model AI yang akan digunakan:",
             models,
             current_index,
-            editable=False # <-- INI PERBAIKANNYA (dari isEditable)
+            editable=False # <-- Ini adalah perbaikan typo (bukan 'isEditable')
         )
         
         if ok and new_model and new_model != current_model:

@@ -15,11 +15,13 @@ except ImportError:
 
 from PIL import Image
 import json
+import os # <-- Tambahkan import os untuk basename
 
 # --- Variabel Global ---
 client = None
 api_is_configured = False
 current_model_name = "" 
+api_init_error_message = "" # <-- VARIABEL BARU UNTUK MENYIMPAN ERROR
 
 # Skema JSON (tidak berubah)
 JSON_SCHEMA = {
@@ -52,23 +54,32 @@ def init_api(api_key: str):
     """
     Menginisialisasi Gemini API Client (SDK Baru) dengan key.
     """
-    global client, api_is_configured
+    global client, api_is_configured, api_init_error_message # <-- Tambahkan var baru
     
     if api_key:
         try:
             # Gunakan API key untuk mengautentikasi client
-            # (Asumsi SDK baru menggunakan 'api_key' saat inisialisasi client
-            # atau mengambil dari os.environ yang diatur main.py)
             genai.configure(api_key=api_key) 
             client = genai.Client()
-            client.models.list() 
+            client.models.list() # Tes koneksi dengan mengambil daftar model
+            
             api_is_configured = True
+            api_init_error_message = "" # Hapus error jika sukses
             print("Gemini API (Client SDK) berhasil dikonfigurasi.")
+            
         except Exception as e:
             print(f"Konfigurasi Gemini (Client SDK) gagal: {e}")
             api_is_configured = False
+            # --- BARIS YANG DIPERBARUI ---
+            # Simpan pesan error spesifik agar bisa dibaca UI
+            api_init_error_message = f"Koneksi gagal: {e}" 
+            # ---------------------------
+            
     else:
         api_is_configured = False
+        # --- BARIS YANG DIPERBARUI ---
+        api_init_error_message = "API Key tidak ditemukan. Silakan masukkan API Key melalui menu 'File' > 'Konfigurasi API Key'."
+        # ---------------------------
         print("Gemini API Key tidak ditemukan. Fitur AI akan dinonaktifkan.")
 
 def set_model(model_name: str):
@@ -86,7 +97,9 @@ def extract_data_from_images(image_paths: list[str]):
     """
     
     if not api_is_configured or client is None:
-        return False, "Gemini API belum dikonfigurasi.\n\nSilakan masukkan API Key Anda melalui menu 'File' > 'Konfigurasi API Key'."
+        # Gunakan pesan error yang tersimpan jika ada
+        error_msg = api_init_error_message or "Gemini API belum dikonfigurasi."
+        return False, f"{error_msg}\n\nSilakan masukkan API Key Anda melalui menu 'File' > 'Konfigurasi API Key'."
 
     if not current_model_name:
         return False, "Model Gemini belum dipilih. Silakan pilih model dari menu 'Pengaturan'."
@@ -96,7 +109,6 @@ def extract_data_from_images(image_paths: list[str]):
         for path in image_paths:
             print(f"Memuat gambar: {path}...")
             # Unggah file ke API untuk mendapatkan 'handle'
-            # Ini adalah cara yang lebih baik untuk SDK baru
             uploaded_file = client.files.upload(
                 path=path,
                 display_name=os.path.basename(path)

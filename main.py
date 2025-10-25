@@ -21,11 +21,10 @@ class MainWindow(QMainWindow):
         self.setup_menu()
         self.setup_main_widgets()
         
-        # Mulai dengan menampilkan form tambah data baru
         self.show_add_new_form() 
 
     def setup_menu(self):
-        """Membuat dan mengatur Menu Bar."""
+        # (Fungsi ini tidak berubah)
         menu_bar = self.menuBar()
         
         file_menu = menu_bar.addMenu('File')
@@ -35,7 +34,6 @@ class MainWindow(QMainWindow):
 
         nav_menu = menu_bar.addMenu('Navigasi')
         
-        # Tombol ini sekarang khusus untuk menambah data baru
         add_data_action = QAction('Tambah Data Pendaftaran', self)
         add_data_action.triggered.connect(self.show_add_new_form) 
         nav_menu.addAction(add_data_action)
@@ -45,8 +43,7 @@ class MainWindow(QMainWindow):
         nav_menu.addAction(view_data_action)
 
     def setup_main_widgets(self):
-        """Membuat QStackedWidget dan menambahkan halaman."""
-        
+        # (Fungsi ini tidak berubah)
         self.stacked_widget = QStackedWidget()
         
         self.form_page = FormWidget()
@@ -57,58 +54,63 @@ class MainWindow(QMainWindow):
 
         self.setCentralWidget(self.stacked_widget)
 
-        # --- Hubungkan Sinyal ---
-        
-        # Saat form (tambah/edit) disimpan, panggil handle_data_saved
         self.form_page.data_saved.connect(self.handle_data_saved)
-        
-        # Saat tombol 'Edit' di tabel diklik, panggil handle_edit_request
         self.view_page.edit_requested.connect(self.handle_edit_request)
-        
-        # Saat tombol 'Hapus' di tabel diklik, panggil handle_delete_request
         self.view_page.delete_requested.connect(self.handle_delete_request)
 
     # --- FUNGSI SLOT (Logika Aplikasi) ---
 
     def navigate_to_form_page(self):
-        """Hanya beralih ke tampilan formulir."""
+        # (Fungsi ini tidak berubah)
         self.stacked_widget.setCurrentWidget(self.form_page)
 
     def show_view_page(self):
-        """Beralih ke tampilan tabel dan me-refresh datanya."""
-        self.view_page.load_data() # Selalu refresh saat halaman dibuka
+        # (Fungsi ini tidak berubah)
+        self.view_page.load_data() 
         self.stacked_widget.setCurrentWidget(self.view_page)
         self.setWindowTitle('Aplikasi Pendaftaran NPWP - Lihat Data')
 
     def show_add_new_form(self):
-        """Mempersiapkan form untuk entri data baru."""
-        self.form_page.bersihkan_form() # Pastikan form kosong & mode 'Tambah'
+        # (Fungsi ini tidak berubah)
+        self.form_page.bersihkan_form()
         self.navigate_to_form_page()
         self.setWindowTitle('Aplikasi Pendaftaran NPWP - Tambah Data')
                 
     def handle_data_saved(self):
-        """Dipanggil saat data disimpan/diupdate dari form."""
-        # Otomatis pindah ke tabel untuk melihat hasilnya
+        # (Fungsi ini tidak berubah)
         self.show_view_page() 
 
     def handle_edit_request(self, user_id):
-        """Mempersiapkan form untuk mengedit data yang ada."""
+        # (Fungsi ini tidak berubah)
         print(f"Menerima permintaan edit untuk ID: {user_id}")
         self.form_page.load_data_for_edit(user_id)
         self.navigate_to_form_page()
         self.setWindowTitle(f'Aplikasi Pendaftaran NPWP - Edit Data (ID: {user_id})')
 
+    # --- FUNGSI DIPERBARUI ---
     def handle_delete_request(self, user_id):
-        """Menangani permintaan penghapusan data dengan konfirmasi."""
+        """Menangani permintaan hapus dengan konfirmasi yang lebih baik."""
         print(f"Menerima permintaan hapus untuk ID: {user_id}")
+        
+        # Ambil data dulu untuk konfirmasi
+        success, data = db_manager.get_data_by_id(user_id)
+        if not success:
+            QMessageBox.critical(self, "Error", data)
+            return
+
+        nama = data['nama']
+        nik = data['nik']
         
         # Tampilkan kotak konfirmasi
         reply = QMessageBox.question(
             self, 
             "Konfirmasi Hapus", 
-            f"Apakah Anda yakin ingin menghapus data dengan ID {user_id}?",
+            f"Apakah Anda yakin ingin menghapus data:\n\n"
+            f"Nama: {nama}\n"
+            f"NIK: {nik}\n\n"
+            f"Tindakan ini juga akan MENGHAPUS SELURUH FOLDER dokumen terkait secara permanen.",
             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
-            QMessageBox.StandardButton.No # Default ke 'No'
+            QMessageBox.StandardButton.No
         )
         
         if reply == QMessageBox.StandardButton.Yes:

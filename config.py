@@ -17,3 +17,7 @@ FIELD_UNTUK_INSERT = [
     'tempat_lahir', 'tanggal_lahir', 'alamat', 'pekerjaan', 
     'nama_ibu', 'email', 'password', 'no_hp'
 ]
+
+# --- BARIS BARU ---
+# Nama folder utama untuk menyimpan semua dokumen
+BASE_DOC_FOLDER = 'dokumen_npwp'

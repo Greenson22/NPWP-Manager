@@ -10,10 +10,10 @@
 
 # --- Konfigurasi ---
 # (Ubah ini jika nama folder virtual environment Anda berbeda)
-VENV_FOLDER="venv"
+VENV_FOLDER=".env"
 
 # Menentukan file Python utama
-MAIN_SCRIPT="code/main.py"
+MAIN_SCRIPT="main.py"
 
 # --------------------
 
@@ -31,7 +31,11 @@ if [ ! -d "$VENV_FOLDER" ]; then
 fi
 
 echo "Mengaktifkan virtual environment..."
-source "$VENV_FOLDER/bin/activate"
+#
+# --- INI ADALAH PERBAIKANNYA ---
+# Mengganti 'source' dengan '.' agar kompatibel dengan 'sh'/'dash'
+. "$VENV_FOLDER/bin/activate"
+# ------------------------------
 
 # 2. Menjalankan Nuitka
 echo "Menjalankan Nuitka untuk $MAIN_SCRIPT..."

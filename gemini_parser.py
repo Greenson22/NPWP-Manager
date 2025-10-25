@@ -1,17 +1,20 @@
 # gemini_parser.py
 # Mengurus semua logika untuk memanggil Gemini API
-# VERSI 2.1 - Memperbaiki penempatan JSON Schema
+# VERSI 3.2 - Revert ke 'GenerativeModel' (V2.1) tapi tetap
+#             mendukung pemilihan model (V3.1).
 
 import google.generativeai as genai
 from google.generativeai.types import GenerationConfig
+
 from PIL import Image
 import json
 
 # --- Variabel Global ---
-model = None
+model = None # Kita kembali menggunakan 'model'
 api_is_configured = False
+current_model_name = "" # Variabel ini tetap ada
 
-# Definisikan skema JSON yang kita inginkan dari AI.
+# Skema JSON (tidak berubah)
 JSON_SCHEMA = {
     "type": "object",
     "properties": {
@@ -26,34 +29,30 @@ JSON_SCHEMA = {
     "required": ["nama", "nik", "nik_kk", "no_kk", "tempat_lahir", "tanggal_lahir", "alamat"]
 }
 
+# Instruksi Sistem (tidak berubah)
+SYSTEM_INSTRUCTION = (
+    "Anda adalah asisten OCR yang ahli dalam membaca dokumen kependudukan Indonesia (KTP dan KK).\n"
+    "Tugas Anda adalah menganalisis gambar, menggabungkan data dari KTP dan KK, dan mengisi skema JSON yang disediakan.\n\n"
+    "ATURAN PRIORITAS:\n"
+    "1. Gunakan KTP sebagai sumber utama (prioritas 1) untuk: 'nama', 'nik', 'tempat_lahir', 'tanggal_lahir', 'alamat'.\n"
+    "2. Gunakan Kartu Keluarga (KK) sebagai sumber utama (prioritas 1) untuk: 'no_kk' dan 'nik_kk' (NIK Kepala Keluarga).\n"
+    "3. Jika data di KTP tidak jelas (misal 'alamat' terpotong), Anda boleh menggunakan data dari KK sebagai cadangan (prioritas 2).\n"
+    "4. Jika data tidak ditemukan di gambar manapun, kembalikan string kosong \"\"."
+)
 
+# --- FUNGSI DIPERBARUI ---
 def init_api(api_key: str):
     """
-    Menginisialisasi Gemini API dengan key yang diberikan.
+    Menginisialisasi Gemini API (SDK lama) dengan key.
     """
-    global model, api_is_configured
+    global api_is_configured
     
     if api_key:
         try:
+            # Ini adalah syntax SDK yang Anda miliki
             genai.configure(api_key=api_key)
-            
-            system_instruction = (
-                "Anda adalah asisten OCR yang ahli dalam membaca dokumen kependudukan Indonesia (KTP dan KK).\n"
-                "Tugas Anda adalah menganalisis gambar, menggabungkan data dari KTP dan KK, dan mengisi skema JSON yang disediakan.\n\n"
-                "ATURAN PRIORITAS:\n"
-                "1. Gunakan KTP sebagai sumber utama (prioritas 1) untuk: 'nama', 'nik', 'tempat_lahir', 'tanggal_lahir', 'alamat'.\n"
-                "2. Gunakan Kartu Keluarga (KK) sebagai sumber utama (prioritas 1) untuk: 'no_kk' dan 'nik_kk' (NIK Kepala Keluarga).\n"
-                "3. Jika data di KTP tidak jelas (misal 'alamat' terpotong), Anda boleh menggunakan data dari KK sebagai cadangan (prioritas 2).\n"
-                "4. Jika data tidak ditemukan di gambar manapun, kembalikan string kosong \"\"."
-            )
-            
-            model = genai.GenerativeModel(
-                model_name='gemini-1.5-pro-latest',
-                system_instruction=system_instruction
-            )
-            
             api_is_configured = True
-            print("Gemini API (1.5 Pro) berhasil dikonfigurasi.")
+            print("Gemini API (google.generativeai) berhasil dikonfigurasi.")
         except Exception as e:
             print(f"Konfigurasi Gemini gagal: {e}")
             api_is_configured = False
@@ -61,18 +60,39 @@ def init_api(api_key: str):
         api_is_configured = False
         print("Gemini API Key tidak ditemukan. Fitur AI akan dinonaktifkan.")
 
+# --- FUNGSI DIPERBARUI ---
+def set_model(model_name: str):
+    """
+    Dipanggil oleh main.py untuk membuat instance model.
+    """
+    global current_model_name, model
+    current_model_name = model_name
+    
+    if api_is_configured:
+        try:
+            # Buat instance model menggunakan syntax SDK lama
+            model = genai.GenerativeModel(
+                model_name=current_model_name,
+                system_instruction=SYSTEM_INSTRUCTION
+            )
+            print(f"Model Gemini diatur ke: {current_model_name}")
+        except Exception as e:
+            print(f"Gagal membuat instance model {current_model_name}: {e}")
+            model = None 
+    else:
+         print("API Key belum dikonfigurasi, 'set_model' ditunda.")
 
+
+# --- FUNGSI DIPERBARUI ---
 def extract_data_from_images(image_paths: list[str]):
     """
-    Mengirim BEBERAPA gambar (KTP & KK) ke Gemini API dan meminta
-    ekstraksi data yang DIGABUNGKAN dalam format JSON yang dipaksakan.
+    Mengirim BEBERAPA gambar ke API menggunakan 'model.generate_content()'.
     """
     
     if not api_is_configured or model is None:
-        return False, "Gemini API belum dikonfigurasi.\n\nSilakan masukkan API Key Anda melalui menu 'File' > 'Konfigurasi API Key'."
+        return False, "Gemini API belum dikonfigurasi atau model gagal dimuat.\n\nSilakan periksa API Key dan pilihan Model Anda."
 
     try:
-        # 1. Muat semua gambar
         loaded_images = []
         for path in image_paths:
             print(f"Memuat gambar: {path}...")
@@ -82,28 +102,24 @@ def extract_data_from_images(image_paths: list[str]):
         if not loaded_images:
             return False, "Tidak ada gambar yang dipilih."
 
-        # --- PERBAIKAN 1 ---
-        # Siapkan prompt (HANYA gambar dan teks sederhana)
-        # Kita HAPUS JSON_SCHEMA dari sini.
         prompt_parts = loaded_images + [
             "Tolong ekstrak data dari gambar-gambar ini sesuai dengan aturan dan skema JSON yang telah ditentukan."
         ]
 
-        # --- PERBAIKAN 2 ---
-        # Konfigurasi untuk JSON Mode
-        # Kita TAMBAHKAN 'response_schema' di sini.
+        # Konfigurasi JSON Mode (Syntax SDK lama)
         generation_config = GenerationConfig(
             response_mime_type="application/json",
             response_schema=JSON_SCHEMA 
         )
         
-        # 4. Panggil API
+        print(f"Memanggil API menggunakan model: {current_model_name}...")
+        
+        # Panggil API menggunakan syntax SDK lama
         response = model.generate_content(
             prompt_parts,
             generation_config=generation_config
         )
         
-        # 5. Parsing Respon
         print(f"Respon JSON API: {response.text}")
         data_dict = json.loads(response.text)
         
@@ -111,7 +127,6 @@ def extract_data_from_images(image_paths: list[str]):
 
     except Exception as e:
         print(f"Error saat memanggil Gemini API: {e}")
-        # Tangani error spesifik jika ada
         if "response" in locals() and hasattr(response, 'prompt_feedback'):
              print(f"Detail Error: {response.prompt_feedback}")
         return False, f"Terjadi kesalahan saat memproses gambar: {e}"

@@ -7,7 +7,6 @@
 Sebuah aplikasi desktop internal yang dibangun dengan Python, PyQt6, dan SQLite untuk membantu mengelola, mengarsipkan, dan mempercepat proses entri data pendaftaran NPWP.
 
 ![Tampilan Utama Aplikasi NPWP Manager](https://user-images.githubusercontent.com/username/repo/raw/main/assets/screenshots/daftar_data.png)
-*(Catatan: Ganti URL gambar di atas dengan path ke gambar `daftar_data.png` di repositori Anda)*
 
 ---
 
